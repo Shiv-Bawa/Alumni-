@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NITJ Alumni – Voter Portal</title>
+  <link rel="stylesheet" href="voter.css" />
+</head>
+<body>
+
+
+
+<!--HEADER-->
+<header>
+  <div class="logo">NITJ</div>
+  <div>
+    <h1>NITJ Alumni Association Election
+Nomination Form</h1>
+    <p>Alumni Election — Voter Portal &nbsp;|&nbsp; <a href="https://nitj.ac.in" style="color:rgba(255,255,255,.7);">nitj.ac.in</a></p>
+  </div>
+</header>
+
+<!--STEPPER-->
+<div class="stepper">
+  <div class="step active" data-num="1">Registration</div>
+  <div class="step" data-num="2">Verify Code</div>
+  <div class="step" data-num="3">Cast Vote</div>
+  <div class="step" data-num="4">Done</div>
+</div>
+
+<!-- Registeration for the voter -->
+<div class="card panel active" id="panel-register">
+  <div class="card-header">
+    Voter Registration
+    <small>Fill in your details exactly as registered with NITJA</small>
+  </div>
+  <div class="card-body">
+
+    <div id="reg-msg" class="msg"></div>
+
+    <form id="reg-form" novalidate autocomplete="off">
+
+      <p class="section-title">Personal Information</p>
+
+      <div class="row">
+        <div class="field">
+          <label for="fullName">Full Name *</label>
+          <input id="fullName" type="text" placeholder="As per NITJ records" required />
+        </div>
+        <div class="field">
+          <label for="rollNumber">Roll Number *</label>
+          <input id="rollNumber" type="text"  required />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="yearOfPassing">Year of Passing Out *</label>
+          <input id="yearOfPassing" type="number" min="1960" max="2100" placeholder="e.g. 2015" required />
+        </div>
+        <div class="field">
+          <label for="branch">Branch *</label>
+          <input id="branch" type="text" placeholder="e.g. Computer Science & Engineering" required />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="email">Email ID *</label>
+          <input id="email" type="email" placeholder="Registered email with NITJAA" required />
+        </div>
+        <div class="field">
+          <label for="mobile">Mobile Number *</label>
+          <input id="mobile" type="tel" placeholder="+91 98765 43210" required />
+        </div>
+      </div>
+
+      <p class="section-title">Professional Information</p>
+
+      <div class="row full">
+        <div class="field">
+          <label for="cityCountry">Current City and Country *</label>
+          <input id="cityCountry" type="text" placeholder="e.g. Bengaluru, India" required />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="company">Company / Business / Occupation *</label>
+          <input id="company" type="text" placeholder="e.g. Infosys Ltd." required />
+        </div>
+        <div class="field">
+          <label for="designation">Designation / Post / Nature of Work *</label>
+          <input id="designation" type="text" placeholder="e.g. Senior Software Engineer" required />
+        </div>
+      </div>
+
+      <button type="submit" id="reg-btn" class="btn btn-primary btn-block">
+        Submit &amp; Send 4-Digit Code
+      </button>
+
+    </form>
+  </div>
+</div>
+
+
+<!-- 4 digit code =-->
+<div class="card panel" id="panel-otp">
+  <div class="card-header">
+    Enter Your 4-Digit Access Code
+    <small>Check your registered email inbox</small>
+  </div>
+  <div class="card-body">
+
+    <div id="otp-msg" class="msg"></div>
+
+    <div class="otp-center">
+      <p>A 4-digit code has been sent to</p>
+      <p class="otp-email" id="otp-email-display"></p>
+      <p class="otp-validity">Valid for 10 minutes. Use this code to access the Online Voting Ballot.</p>
+    </div>
+
+    <div class="otp-group">
+      <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 1" />
+      <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 2" />
+      <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 3" />
+      <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 4" />
+    </div>
+
+    <p class="otp-note">Enter all 4 digits to unlock the voting ballot</p>
+
+    <button id="otp-verify-btn" class="btn btn-primary btn-block">
+      Open Voting Ballot
+    </button>
+
+    <p class="timer" id="otp-timer"></p>
+    <p class="resend-link" id="resend-link">Resend Code</p>
+
+  </div>
+</div>
+
+<!-- voting ballot -->
+<div class="card panel" id="panel-ballot">
+  <div class="card-header">
+    Online Voting Ballot
+    <small>Select candidates for each position. Your vote is confidential.</small>
+  </div>
+  <div class="card-body">
+
+    <div class="ballot-note">
+      ⚠️ You can vote <strong>only once</strong>. Review your selections carefully before submitting.
+      All single positions allow <strong>1 selection only</strong>.
+      Executive Council allows <strong>up to 8 selections</strong>.
+    </div>
+
+    <div id="ballot-msg" class="msg"></div>
+    <div id="ballot-container">
+      <p style="color:#aaa; text-align:center; padding:30px 0;">Loading ballot…</p>
+    </div>
+
+    <button id="submit-vote-btn" class="btn btn-primary btn-block" disabled>
+      Submit My Vote
+    </button>
+
+  </div>
+</div>
+
+<!-- confirmation -->
+<div class="card panel" id="panel-confirm">
+  <div class="card-header">Vote Submitted Successfully</div>
+  <div class="card-body">
+    <div class="confirm-box">
+      <div class="tick">✅</div>
+      <h2>Thank You for Voting!</h2>
+      <p>
+        Your vote has been securely recorded by the NITJ Alumni Election Committee.<br />
+        Results will be declared as per the official election schedule.<br /><br />
+        <strong>NIT Jalandhar Alumni Association</strong>
+      </p>
+    </div>
+  </div>
+</div>
+
+
+
+<script>
+  const API = '';
+
+  // app state 
+  let voterId    = null;
+  let voterEmail = '';
+  let otpTimer   = null;
+  let ballot     = {};
+
+  let selections = {
+    president:        null,
+    generalSecretary: null,
+    treasurer:        null,
+    coTreasurer:      null,
+    executiveMembers: [],
+  };
+
+
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className   = `msg show msg-${type}`;
+  }
+
+  function hideMsg(id) {
+    document.getElementById(id).className = 'msg';
+  }
+
+
+  // navigation
+  function setStep(n) {
+    document.querySelectorAll('.step').forEach((s, i) => {
+      s.classList.remove('active', 'done');
+      if (i + 1 < n)  s.classList.add('done');
+      if (i + 1 === n) s.classList.add('active');
+    });
+    ['register', 'otp', 'ballot', 'confirm'].forEach((name, i) => {
+      document.getElementById(`panel-${name}`).classList.toggle('active', i + 1 === n);
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+ 
+  // time for loading 
+  function setLoading(btnId, loading, label) {
+    const btn = document.getElementById(btnId);
+    btn.disabled    = loading;
+    btn.textContent = loading ? 'Please wait…' : label;
+  }
+
+
+
+  // Rgistration 
+
+  document.getElementById('reg-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideMsg('reg-msg');
+
+    const val = (id) => document.getElementById(id).value.trim();
+
+    const payload = {
+      fullName:      val('fullName'),
+      rollNumber:    val('rollNumber'),
+      yearOfPassing: parseInt(val('yearOfPassing')),
+      branch:        val('branch'),
+      email:         val('email'),
+      mobile:        val('mobile'),
+      cityCountry:   val('cityCountry'),
+      company:       val('company'),
+      designation:   val('designation'),
+    };
+
+    // confirm all fields filled
+    const missing = Object.entries(payload).some(([k, v]) => !v && k !== 'yearOfPassing');
+    if (missing || !payload.yearOfPassing) {
+      showMsg('reg-msg', 'Please fill in all required fields.', 'error');
+      return;
+    }
+
+    setLoading('reg-btn', true, 'Submit & Send 4-Digit Code');
+
+    try {
+      const res  = await fetch(`${API}/api/voter/register`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        voterId    = data.voterId;
+        voterEmail = payload.email;
+        document.getElementById('otp-email-display').textContent = voterEmail;
+        setStep(2);
+        startOTPTimer(600); 
+      } else {
+
+        showMsg('reg-msg', data.message, 'error');
+      }
+    } catch {
+      showMsg('reg-msg', 'Network error. Please check your connection and try again.', 'error');
+    } finally {
+      setLoading('reg-btn', false, 'Submit & Send 4-Digit Code');
+    }
+  });
+
+
+
+
+  
+  // enter 4 digit code
+  const digits = document.querySelectorAll('.otp-digit');
+
+  digits.forEach((inp, i) => {
+    inp.addEventListener('input', () => {
+      inp.value = inp.value.replace(/\D/g, '').slice(0, 1);
+      if (inp.value && i < digits.length - 1) {
+        digits[i + 1].focus();
+      }
+    });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !inp.value && i > 0) {
+        digits[i - 1].focus();
+      }
+    });
+
+    inp.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const pasted = (e.clipboardData || window.clipboardData)
+        .getData('text').replace(/\D/g, '').slice(0, 4);
+      [...pasted].forEach((ch, j) => {
+        if (digits[j]) digits[j].value = ch;
+      });
+      if (digits[pasted.length - 1]) digits[pasted.length - 1].focus();
+    });
+  });
+
+  function getOTPValue() {
+    return [...digits].map(d => d.value).join('');
+  }
+
+  function startOTPTimer(seconds) {
+    clearInterval(otpTimer);
+    const timerEl  = document.getElementById('otp-timer');
+    const resendEl = document.getElementById('resend-link');
+    resendEl.style.display = 'none';
+    let remaining = seconds;
+
+    timerEl.textContent = `Code expires in ${fmtTime(remaining)}`;
+
+    otpTimer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(otpTimer);
+        timerEl.textContent       = 'Code has expired.';
+        resendEl.style.display    = 'block';
+      } else {
+        timerEl.textContent = `Code expires in ${fmtTime(remaining)}`;
+      }
+    }, 1000);
+  }
+
+  function fmtTime(s) {
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  document.getElementById('otp-verify-btn').addEventListener('click', async () => {
+    const otp = getOTPValue();
+    if (otp.length !== 4) {
+      showMsg('otp-msg', 'Please enter the complete 4-digit code.', 'error');
+      return;
+    }
+
+    hideMsg('otp-msg');
+    setLoading('otp-verify-btn', true, 'Open Voting Ballot');
+
+    try {
+      const res  = await fetch(`${API}/api/voter/verify-otp`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ voterId, otp }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        clearInterval(otpTimer);
+        setStep(3);
+        loadBallot();
+      } else {
+        showMsg('otp-msg', data.message, 'error');
+      }
+    } catch {
+      showMsg('otp-msg', 'Network error. Please try again.', 'error');
+    } finally {
+      setLoading('otp-verify-btn', false, 'Open Voting Ballot');
+    }
+  });
+
+  document.getElementById('resend-link').addEventListener('click', () => {
+    digits.forEach(d => d.value = '');
+    digits[0].focus();
+    document.getElementById('reg-form').dispatchEvent(new Event('submit'));
+    setStep(2);
+  });
+
+
+  // voting ballot
+  async function loadBallot() {
+    const container = document.getElementById('ballot-container');
+    container.innerHTML = '<p style="color:#aaa;text-align:center;padding:30px 0;">Loading ballot…</p>';
+
+    try {
+      const res  = await fetch(`${API}/api/voter/ballot/${voterId}`);
+      const data = await res.json();
+
+      if (!data.success) {
+        container.innerHTML = `<p style="color:red;text-align:center">${data.message}</p>`;
+        return;
+      }
+      ballot = data.ballot;
+      renderBallot();
+    } catch {
+      container.innerHTML = '<p style="color:red;text-align:center">Failed to load ballot. Please refresh the page.</p>';
+    }
+  }
+
+  function renderBallot() {
+    const container = document.getElementById('ballot-container');
+
+    const positions = [
+      {
+        key:   'President',
+        label: 'President',
+        field: 'president',
+        multi: false,
+        rule:  'Select 1 candidate',
+      },
+      {
+        key:   'General Secretary',
+        label: 'General Secretary',
+        field: 'generalSecretary',
+        multi: false,
+        rule:  'Select 1 candidate',
+      },
+      {
+        key:   'Treasurer',
+        label: 'Treasurer',
+        field: 'treasurer',
+        multi: false,
+        rule:  'Select 1 candidate',
+      },
+      {
+        key:   'Co-Treasurer',
+        label: 'Co-Treasurer',
+        field: 'coTreasurer',
+        multi: false,
+        rule:  'Select 1 candidate',
+      },
+      {
+        key:   'Executive Council Member',
+        label: 'Executive Council Member (8 Nos)',
+        field: 'executiveMembers',
+        multi: true,
+        rule:  'Select up to 8 candidates',
+      },
+    ];
+
+    container.innerHTML = positions.map((pos, idx) => {
+      const cands = ballot[pos.key] || [];
+
+      const execCounter = pos.multi
+        ? `<p class="exec-counter">Selected: <span id="exec-count">0</span> / 8</p>`
+        : '';
+
+      const noCandsMsg = '<p style="color:#bbb;font-size:14px;padding:8px 0;">No candidates registered for this position yet.</p>';
+
+      const cards = cands.length === 0
+        ? noCandsMsg
+        : cands.map(c => `
+          <label class="cand-card${pos.multi ? ' exec-style' : ''}"
+                 id="cc-${pos.field}-${c._id}">
+            <input
+              type="${pos.multi ? 'checkbox' : 'radio'}"
+              name="${pos.field}"
+              value="${c._id}"
+              onchange="handleSelect('${pos.field}','${c._id}',this,${pos.multi})"
+            />
+            <div class="cand-name">${c.fullName}</div>
+            <div class="cand-meta">${c.branch} &nbsp;·&nbsp; ${c.yearOfPassing}<br>${c.designation} — ${c.company}</div>
+            <span class="cand-dot"></span>
+          </label>
+        `).join('');
+
+      const sep = idx < positions.length - 1 ? '<hr class="ballot-sep">' : '';
+
+      return `
+        <div class="position-block">
+          <div class="position-header">
+            <span class="position-name">${pos.label}</span>
+            <span class="position-rule">${pos.rule}</span>
+          </div>
+          <hr class="position-hr">
+          ${execCounter}
+          <div class="candidate-grid">${cards}</div>
+        </div>
+        ${sep}
+      `;
+    }).join('');
+
+    checkAllSelected();
+  }
+
+  function handleSelect(field, candidateId, inputEl, isMulti) {
+    const card = document.getElementById(`cc-${field}-${candidateId}`);
+
+    if (isMulti) {
+      if (inputEl.checked) {
+        if (selections.executiveMembers.length >= 8) {
+          inputEl.checked = false;
+          return;
+        }
+        selections.executiveMembers.push(candidateId);
+        card.classList.add('selected');
+      } else {
+        selections.executiveMembers = selections.executiveMembers.filter(id => id !== candidateId);
+        card.classList.remove('selected');
+      }
+      const countEl = document.getElementById('exec-count');
+      if (countEl) countEl.textContent = selections.executiveMembers.length;
+    } else {
+
+
+      // Deselect all in same group
+      document.querySelectorAll(`input[name="${field}"]`).forEach(inp => {
+        document.getElementById(`cc-${field}-${inp.value}`)?.classList.remove('selected');
+      });
+      selections[field] = candidateId;
+      card.classList.add('selected');
+    }
+
+    checkAllSelected();
+  }
+
+  function checkAllSelected() {
+    const singles = ['president', 'generalSecretary', 'treasurer', 'coTreasurer'];
+    const allDone = singles.every(f => selections[f] !== null);
+    const execOk  = selections.executiveMembers.length >= 1;
+    document.getElementById('submit-vote-btn').disabled = !(allDone && execOk);
+  }
+
+  
+
+
+  // submitting the vote 
+  let submitting = false;
+
+  document.getElementById('submit-vote-btn').addEventListener('click', async () => {
+    if (submitting) return; // prevent double-click / double API call
+    submitting = true;
+
+    hideMsg('ballot-msg');
+    setLoading('submit-vote-btn', true, 'Submit My Vote');
+
+    try {
+      const res  = await fetch(`${API}/api/voter/submit-vote`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          voterId,
+          presidentCandidateId:        selections.president,
+          generalSecretaryCandidateId: selections.generalSecretary,
+          treasurerCandidateId:        selections.treasurer,
+          coTreasurerCandidateId:      selections.coTreasurer,
+          executiveMemberIds:          selections.executiveMembers,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setStep(4);
+      } else {
+        showMsg('ballot-msg', data.message, 'error');
+        submitting = false;
+        setLoading('submit-vote-btn', false, 'Submit My Vote');
+      }
+    } catch {
+      showMsg('ballot-msg', 'Network error. Please try again.', 'error');
+      submitting = false;
+      setLoading('submit-vote-btn', false, 'Submit My Vote');
+    }
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nomination Form — NITJAA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+
+<!-- HEADER  -->
+  <header class="site-header">
+    <div class="header-container">
+      <div class="header-brand">
+        <div class="brand-emblem">
+          <span class="emblem-bottom">NITJ</span>
+        </div>
+        <div class="brand-info">
+          <p class="brand-name">National Institute of Technology, Jalandhar</p>
+          <p class="brand-sub">Alumni Association · Election Cell</p>
+        </div>
+      </div>
+      <div class="header-pill">Alumni Election</div>
+    </div>
+    <div class="header-progress">
+      <div class="header-progress-fill" id="progressFill"></div>
+    </div>
+  </header>
+
+
+
+
+  <!--  BANNER    -->
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">🗳️ Nominations Open</div>
+      <h1 class="hero-title">NITJ Alumni Association Election<br>Nomination Form</h1>
+      <div class="hero-steps">
+        <div class="step active"><span class="step-dot">1</span><span>Fill Form</span></div>
+        <div class="step-line"></div>
+        <div class="step" id="stepDot2"><span class="step-dot">2</span><span>Verify OTP</span></div>
+        <div class="step-line"></div>
+        <div class="step" id="stepDot3"><span class="step-dot">3</span><span>Confirmed</span></div>
+      </div>
+    </div>
+  </div>
+
+
+  
+  <!--  FORM  -->
+  <main class="main">
+    <form id="nominationForm" novalidate>
+
+      
+      <section class="card" id="sec-positions">
+        <div class="card-label">Section 01</div>
+        <h2 class="card-title">Position Applied For</h2>
+        <p class="card-desc">Select one or more positions. At least one is mandatory.</p>
+
+        <div class="position-grid">
+  <label class="pos-card">
+    <input type="radio" name="positionsApplied" value="President"/>
+    <div class="pos-inner">
+      <div class="pos-icon">🏛️</div>
+      <div class="pos-name">President</div>
+      <div class="pos-check">✓</div>
+    </div>
+  </label>
+
+  <label class="pos-card">
+    <input type="radio" name="positionsApplied" value="General Secretary" />
+    <div class="pos-inner">
+      <div class="pos-icon">📋</div>
+      <div class="pos-name">General Secretary</div>
+      <div class="pos-check">✓</div>
+    </div>
+  </label>
+
+  <label class="pos-card">
+    <input type="radio" name="positionsApplied" value="Joint Secretary" />
+    <div class="pos-inner">
+      <div class="pos-icon">🤝</div>
+      <div class="pos-name">Joint Secretary</div>
+      <div class="pos-check">✓</div>
+    </div>
+  </label>
+
+  <label class="pos-card">
+    <input type="radio" name="positionsApplied" value="Treasurer" />
+    <div class="pos-inner">
+      <div class="pos-icon">💰</div>
+      <div class="pos-name">Treasurer</div>
+      <div class="pos-check">✓</div>
+    </div>
+  </label>
+
+  <label class="pos-card">
+    <input type="radio" name="positionsApplied" value="Co-Treasurer" />
+    <div class="pos-inner">
+      <div class="pos-icon">📊</div>
+      <div class="pos-name">Co-Treasurer</div>
+      <div class="pos-check">✓</div>
+    </div>
+  </label>
+
+  <label class="pos-card">
+    <input type="radio" name="positionsApplied" value="Executive Council Member" />
+    <div class="pos-inner">
+      <div class="pos-icon">⭐</div>
+      <div class="pos-name">Executive Council Member <small>(8 seats)</small></div>
+      <div class="pos-check">✓</div>
+    </div>
+  </label>
+</div>
+        <div class="field-error" id="err-positions"></div>
+      </section>
+
+      <!-- candidate details -->
+      <section class="card" id="sec-candidate">
+        <div class="card-label">Section 02</div>
+        <h2 class="card-title">Candidate Details</h2>
+        <p class="card-desc">Personal and professional information of the nominee</p>
+
+        <div class="form-grid">
+          <div class="field-wrap span-2-on-wide">
+            <label class="field-label required" for="c_fullName">Full Name</label>
+            <input class="field-input" id="c_fullName" name="candidateDetails.fullName" type="text" placeholder="As per degree certificate" autocomplete="name" />
+            <div class="field-error" id="err-c_fullName"></div>
+          </div>
+
+          <div class="field-wrap">
+            <label class="field-label required" for="c_rollNumber">Roll Number</label>
+            <input class="field-input" id="c_rollNumber" name="candidateDetails.rollNumber" type="text" placeholder="e.g. 2K18/EC/001" />
+            <div class="field-error" id="err-c_rollNumber"></div>
+          </div>
+
+          <div class="field-wrap">
+            <label class="field-label required" for="c_year">Year of Passing Out</label>
+            <input class="field-input" id="c_year" name="candidateDetails.yearOfPassingOut" type="number" placeholder="e.g. 2022" min="1960" max="2030" />
+            <div class="field-error" id="err-c_year"></div>
+          </div>
+
+          <div class="field-wrap span-2-on-wide">
+            <label class="field-label required" for="c_branch">Branch / Department</label>
+            <select class="field-input" id="c_branch" name="candidateDetails.branch">
+              <option value="">— Select Branch —</option>
+              <option>Computer Science &amp; Engineering</option>
+              <option>Electronics &amp; Communication Engineering</option>
+              <option>Electrical Engineering</option>
+              <option>Mechanical Engineering</option>
+              <option>Civil Engineering</option>
+              <option>Chemical Engineering</option>
+              <option>Industrial &amp; Production Engineering</option>
+              <option>Information Technology</option>
+              <option>Textile Technology</option>
+              <option>Biotechnology</option>
+              <option>Physics</option>
+              <option>Chemistry</option>
+              <option>Mathematics</option>
+              <option>Other</option>
+            </select>
+            <div class="field-error" id="err-c_branch"></div>
+          </div>
+
+          <div class="field-wrap">
+            <label class="field-label required" for="c_email">Email ID</label>
+            <input class="field-input" id="c_email" name="candidateDetails.email" type="email" placeholder="your@email.com" autocomplete="email" />
+            <div class="field-hint">OTP for verification will be sent here</div>
+            <div class="field-error" id="err-c_email"></div>
+          </div>
+
+          <div class="field-wrap">
+            <label class="field-label required" for="c_mobile">Mobile Number</label>
+            <input class="field-input" id="c_mobile" name="candidateDetails.mobile" type="tel" placeholder="10-digit number" maxlength="10" autocomplete="tel" />
+            <div class="field-error" id="err-c_mobile"></div>
+          </div>
+
+          <div class="field-wrap">
+            <label class="field-label required" for="c_city">Current City</label>
+            <input class="field-input" id="c_city" name="candidateDetails.currentCity" type="text" placeholder="City" />
+            <div class="field-error" id="err-c_city"></div>
+          </div>
+
+          <div class="field-wrap">
+            <label class="field-label required" for="c_country">Current Country</label>
+            <input class="field-input" id="c_country" name="candidateDetails.currentCountry" type="text" placeholder="Country" value="India" />
+            <div class="field-error" id="err-c_country"></div>
+          </div>
+
+          <div class="field-wrap">
+            <label class="field-label required" for="c_company">Company / Business / Occupation</label>
+            <input class="field-input" id="c_company" name="candidateDetails.company" type="text" placeholder="Organisation name" />
+            <div class="field-error" id="err-c_company"></div>
+          </div>
+
+          <div class="field-wrap">
+            <label class="field-label required" for="c_designation">Designation / Nature of Work</label>
+            <input class="field-input" id="c_designation" name="candidateDetails.designation" type="text" placeholder="e.g. Software Engineer" />
+            <div class="field-error" id="err-c_designation"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- payment -->
+      <section class="card" id="sec-payment">
+        <div class="card-label">Section 03</div>
+        <h2 class="card-title">Payment Details</h2>
+        <p class="card-desc">Nomination fee payment confirmation</p>
+
+        <div class="form-grid">
+          <div class="field-wrap span-2-on-wide">
+            <label class="field-label required" for="txnNumber">Transaction Number / UTR</label>
+            <input class="field-input" id="txnNumber" name="paymentDetails.transactionNumber" type="text" placeholder="e.g. UTR123456789012" />
+            <div class="field-error" id="err-txnNumber"></div>
+          </div>
+
+          <div class="field-wrap span-2-on-wide">
+            <label class="field-label required">Payment Screenshot</label>
+            <div class="upload-zone" id="zone-paymentScreenshot" data-field="paymentScreenshot">
+              <input class="upload-input" type="file" id="paymentScreenshot" name="paymentScreenshot" accept=".jpg,.jpeg,.png,.pdf" />
+              <div class="upload-content">
+                <div class="upload-icon">📎</div>
+                <div class="upload-title">Click to upload or drag &amp; drop</div>
+                <div class="upload-sub">JPG · PNG · PDF &nbsp;·&nbsp; Max 5 MB</div>
+              </div>
+              <div class="upload-selected" id="sel-paymentScreenshot"></div>
+            </div>
+            <div class="field-error" id="err-paymentScreenshot"></div>
+          </div>
+        </div>
+      </section>
+      
+
+<!--
+<section class="card" id="sec-payment">
+  <div class="card-label">Section 03</div>
+  <h2 class="card-title">Payment Details</h2>
+  <p class="card-desc">Nomination fee payment confirmation</p>
+
+  <div class="form-grid">
+
+    <div class="field-wrap span-2-on-wide">
+      <label class="field-label required">Nomination Fee Payment</label>
+      <p style="margin-bottom: 10px; font-size: 14px;">
+        Please pay the nomination fee of <strong>₹500</strong> before submitting the form.
+        Click the button below to complete your payment.
+      </p>
+
+      <a href="https://your-payment-link.com" target="_blank" class="pay-btn">
+        Pay Nomination Fee
+      </a>
+
+      <p style="margin-top: 10px; font-size: 12px; color: #777;">
+        After payment, enter the transaction number and upload the payment screenshot below.
+      </p>
+    </div>
+
+    <div class="field-wrap span-2-on-wide">
+      <label class="field-label required" for="txnNumber">
+        Transaction Number / UTR
+      </label>
+      <input
+        class="field-input"
+        id="txnNumber"
+        name="paymentDetails.transactionNumber"
+        type="text"
+        placeholder="e.g. UTR123456789012"
+      />
+      <div class="field-error" id="err-txnNumber"></div>
+    </div>
+
+    <div class="field-wrap span-2-on-wide">
+      <label class="field-label required">Payment Screenshot</label>
+
+      <div class="upload-zone" id="zone-paymentScreenshot" data-field="paymentScreenshot">
+        <input
+          class="upload-input"
+          type="file"
+          id="paymentScreenshot"
+          name="paymentScreenshot"
+          accept=".jpg,.jpeg,.png,.pdf"
+        />
+
+        <div class="upload-content">
+          <div class="upload-icon">📎</div>
+          <div class="upload-title">Click to upload or drag & drop</div>
+          <div class="upload-sub">
+            JPG · PNG · PDF &nbsp;·&nbsp; Max 5 MB
+          </div>
+        </div>
+
+        <div class="upload-selected" id="sel-paymentScreenshot"></div>
+      </div>
+
+      <div class="field-error" id="err-paymentScreenshot"></div>
+    </div>
+
+  </div>
+</section>
+-->
+      <!-- association proof -->
+      <section class="card" id="sec-proof">
+        <div class="card-label">Section 04</div>
+        <h2 class="card-title">Proof of Association</h2>
+        <p class="card-desc">Upload any one of: Degree Certificate, Final Semester DMC, or Email from Faculty</p>
+
+        <div class="upload-zone" id="zone-proofOfAssociation" data-field="proofOfAssociation">
+          <input class="upload-input" type="file" id="proofOfAssociation" name="proofOfAssociation" accept=".jpg,.jpeg,.png,.pdf" />
+          <div class="upload-content">
+            <div class="upload-icon">🎓</div>
+            <div class="upload-title">Upload Degree Certificate / DMC / Faculty Email</div>
+            <div class="upload-sub">JPG · PNG · PDF &nbsp;·&nbsp; Max 5 MB</div>
+          </div>
+          <div class="upload-selected" id="sel-proofOfAssociation"></div>
+        </div>
+        <div class="field-error" id="err-proofOfAssociation"></div>
+      </section>
+
+      <!-- check box -->
+      <section class="card" id="sec-declaration">
+        <div class="card-label">Section 05</div>
+        <h2 class="card-title">Declaration</h2>
+
+        <blockquote class="declaration-text">
+          I, the undersigned, hereby nominate myself for the selected position(s) in the NIT Jalandhar Alumni Association.
+          I declare that all information provided in this form is true and correct to the best of my knowledge.
+          I confirm that I am an alumnus of NIT Jalandhar and fulfil all eligibility criteria for the said position(s).
+          I understand that any false or misleading information may lead to disqualification of my candidature.
+        </blockquote>
+
+        <label class="decl-check" for="declarationAccepted">
+          <input type="checkbox" id="declarationAccepted" name="declarationAccepted" value="true" />
+          <span class="decl-box"></span>
+          <span class="decl-label">I have read and accept the above declaration</span>
+        </label>
+        <div class="field-error" id="err-declaration"></div>
+      </section>
+
+      <!-- submit button -->
+      <div class="submit-wrap">
+        <p class="submit-note">
+          <span class="note-icon">🔒</span>
+          All data is encrypted. An OTP will be sent to your email for verification before final submission.
+        </p>
+        <button type="submit" class="btn-primary" id="submitBtn">
+          <span class="btn-label">Submit &amp; Get OTP</span>
+          <span class="btn-spin" style="display:none"></span>
+          <span class="btn-arrow">→</span>
+        </button>
+      </div>
+
+    </form>
+  </main>
+
+  
+
+  <!-- OTP  -->
+  <div class="modal-bg" id="otpModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <div class="modal-glow"></div>
+      <div class="modal-header">
+        <div class="modal-icon-wrap">📬</div>
+        <h2 class="modal-title" id="modalTitle">Verify Your Email</h2>
+        <p class="modal-desc" id="modalDesc">Enter the 6-digit OTP sent to your email.</p>
+      </div>
+
+      <div class="otp-row" id="otpRow">
+        <input class="otp-cell" id="d0" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 1" />
+        <input class="otp-cell" id="d1" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 2" />
+        <input class="otp-cell" id="d2" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 3" />
+        <span class="otp-sep">·</span>
+        <input class="otp-cell" id="d3" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 4" />
+        <input class="otp-cell" id="d4" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 5" />
+        <input class="otp-cell" id="d5" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 6" />
+      </div>
+
+      <div class="otp-meta">
+        <span id="timerLabel">Expires in</span>
+        <span class="otp-timer" id="otpTimer">05:00</span>
+      </div>
+
+      <div class="otp-alert" id="otpAlert" style="display:none"></div>
+
+      <button class="btn-primary" id="verifyBtn">
+        <span class="btn-label">Verify &amp; Confirm</span>
+        <span class="btn-spin" style="display:none"></span>
+      </button>
+
+      <button class="btn-ghost" id="resendBtn" disabled>Resend OTP</button>
+    </div>
+  </div>
+
+<!-- SUCESS  -->
+  <div class="success-overlay" id="successOverlay" style="display:none">
+    <div class="success-card">
+      <div class="success-anim">✅</div>
+      <h2 class="success-title">Nomination Confirmed!</h2>
+      <p class="success-desc">Your nomination has been verified and submitted to the Election Committee.</p>
+      <div class="success-id-wrap">
+        <span class="success-id-label">Your Nomination ID</span>
+        <span class="success-id" id="successId">—</span>
+      </div>
+      <p class="success-note">A confirmation email has been sent to your registered address. The committee will review your documents and contact you if required.</p>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <footer class="site-footer">
+    <p class="footer-main">© 2026 NIT Jalandhar Alumni Association</p>
+    <p class="footer-sub">National Institute of Technology, Jalandhar — 144011, Punjab, India</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
