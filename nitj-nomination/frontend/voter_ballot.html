@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NITJAA Online Voting Portal</title>
+  <link rel="stylesheet" href="voter.css">
+</head>
+<body>
+
+  <header>
+    <div class="logo">NITJ</div>
+    <div>
+      <h1>Alumni Association Election</h1>
+      <p>Executive Committee 2026-2028</p>
+    </div>
+  </header>
+
+  <div class="stepper">
+    <div class="step active" data-num="1" id="st1">Verify</div>
+    <div class="step" data-num="2" id="st2">Vote</div>
+    <div class="step" data-num="3" id="st3">Confirm</div>
+  </div>
+
+  <main class="card">
+    <div class="panel active" id="panel-verify">
+      <div class="card-header">
+        Voter Verification
+        <small>Enter your details to receive the 4-digit access code</small>
+      </div>
+      <div class="card-body">
+        <div class="msg msg-error" id="voter-error"></div>
+        <form id="voter-reg-form">
+          <div class="row">
+            <div class="field"><label>Full Name</label><input type="text" id="v_name" required></div>
+            <div class="field"><label>Roll Number</label><input type="text" id="v_roll" required></div>
+          </div>
+          <div class="field"><label>Registered Email ID</label><input type="email" id="v_email" required></div>
+          <button type="submit" class="btn btn-primary btn-block">Get Access Code</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-otp">
+      <div class="card-header">Access Code Verification</div>
+      <div class="card-body">
+        <div class="otp-center">
+          <p>Code sent to: <span class="otp-email" id="display-email"></span></p>
+          <div class="otp-group" id="otp-inputs">
+            <input type="text" maxlength="1" id="code1">
+            <input type="text" maxlength="1" id="code2">
+            <input type="text" maxlength="1" id="code3">
+            <input type="text" maxlength="1" id="code4">
+          </div>
+          <div class="otp-note">Valid for 10 minutes</div>
+          <button class="btn btn-primary btn-block" id="verify-code-btn">Access Ballot</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-ballot">
+      <div class="card-header">Online Voting Ballot</div>
+      <div class="card-body">
+        <div class="ballot-note">Select your candidates for each position. One vote per position.</div>
+        
+        <form id="final-ballot-form">
+          <div id="dynamic-ballot-content"></div>
+
+          <div class="position-block">
+            <div class="position-header">
+              <span class="position-name">Executive Council Members</span>
+              <span class="position-rule">Select up to 8</span>
+            </div>
+            <div class="exec-counter">Selected: <span id="exec-count">0</span>/8</div>
+            <div class="candidate-grid" id="council-grid"></div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block">Submit Final Vote</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-success">
+      <div class="card-body">
+        <div class="confirm-box">
+          <div class="tick">✅</div>
+          <h2>Vote Cast Successfully</h2>
+          <p>Thank you for participating in the NITJAA Elections. A confirmation receipt has been sent to your email.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="voter_app.js"></script>
+</body>
+</html>
