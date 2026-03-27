@@ -5,8 +5,6 @@ const Nomination = require('../models/nomination.model');
 const { generateOTP, hashOTP, verifyOTP, getOTPExpiry, isOTPExpired } = require('../services/otp.service');
 const { sendOTPEmail } = require('../services/email.service');
 
-
-
 // register voter 
 const registerVoter = async (req, res) => {
   try {
@@ -18,8 +16,10 @@ const registerVoter = async (req, res) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     // checking from database
+    // 🔥 UPDATE: Check against Nomination records OR a master eligibility dataset
     const alumniRecord = await Nomination.findOne({
       'candidateDetails.email': normalizedEmail,
+      status: 'submitted'
     });
 
     if (!alumniRecord) {
@@ -109,10 +109,6 @@ const registerVoter = async (req, res) => {
   }
 };
 
-
-
-
-
 // verifying otp
 const verifyVoterOTP = async (req, res) => {
   try {
@@ -165,10 +161,6 @@ const verifyVoterOTP = async (req, res) => {
   }
 };
 
-
-
-
-
 // Ballot for candidates 
 const getBallotCandidates = async (req, res) => {
   try {
@@ -181,8 +173,13 @@ const getBallotCandidates = async (req, res) => {
 
     const positions = ['President', 'General Secretary', 'Treasurer', 'Co-Treasurer', 'Executive Council Member'];
 
+    // 🔥 UPDATE: Added isAdminVerified: true to ensure only approved candidates show up
     const candidates = await Nomination.find(
-      { positionsApplied: { $in: positions }, status: 'submitted' },
+      { 
+        positionsApplied: { $in: positions }, 
+        status: 'submitted',
+        isAdminVerified: true 
+      },
       {
         nominationId: 1,
         positionsApplied: 1,
@@ -220,8 +217,6 @@ const getBallotCandidates = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
-
-
 
 // submit the vote
 const submitVote = async (req, res) => {
@@ -278,6 +273,21 @@ const submitVote = async (req, res) => {
     const execDocs = executiveMemberIds.map(cid => ({ voteId: vote._id, candidateId: cid }));
     await VoteExecutiveMember.insertMany(execDocs, { session });
 
+    // 🔥 UPDATE: Increment vote counts in Nomination model for Admin Results
+    const allCandidateIds = [
+      presidentCandidateId, 
+      generalSecretaryCandidateId, 
+      treasurerCandidateId, 
+      coTreasurerCandidateId, 
+      ...executiveMemberIds
+    ];
+    
+    await Nomination.updateMany(
+      { _id: { $in: allCandidateIds } },
+      { $inc: { votes: 1 } },
+      { session }
+    );
+
     voter.hasVoted = true;
     voter.votedAt  = new Date();
     voter.votingIp = req.ip;
@@ -301,8 +311,6 @@ const submitVote = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
   }
 };
-
-
 
 // check voter status 
 const getVoterStatus = async (req, res) => {

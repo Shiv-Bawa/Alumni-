@@ -4,9 +4,9 @@
 
 const API_BASE = 'http://localhost:5000/api/nomination';
 const MAX_MB   = 5;
-const OTP_SEC  = 300; // 5 minutes
+const OTP_SEC  = 600; // Updated to 10 minutes per framework requirements
 
-// sate 
+// state 
 let nominationId   = null;
 let timerInterval  = null;
 let timerRemaining = OTP_SEC;
@@ -54,7 +54,6 @@ const updateProgress = () => {
 function initUploadZone(fieldId) {
   const zone  = el(`zone-${fieldId}`);
   const input = el(fieldId);
-  const selEl = el(`sel-${fieldId}`);
   if (!zone || !input) return;
 
   zone.addEventListener('dragover',  (e) => { e.preventDefault(); zone.classList.add('dragging'); });
@@ -136,7 +135,7 @@ function validateAll() {
     }
     if (id === 'c_year') {
       const y = parseInt(val, 10);
-      if (isNaN(y) || y < 1960 || y > new Date().getFullYear() + 5) {
+      if (isNaN(y) || y < 1960 || y > 2100) {
         setErr(id, 'Enter a valid year.'); ok = false; return;
       }
     }
@@ -156,16 +155,13 @@ function validateAll() {
   return ok;
 }
 
-// ✅ UPDATED FUNCTION (ONLY CHANGE HERE)
+// ✅ UPDATED: Handle multiple positions and 4-digit logic
 function buildFormData() {
   const fd = new FormData();
-
   const positions = Array.from(document.querySelectorAll('input[name="positionsApplied"]:checked')).map(c => c.value);
 
-  // FIX: append each position separately
-  positions.forEach(pos => {
-    fd.append('positionsApplied', pos);
-  });
+  // Appending each selected position for the backend array
+  positions.forEach(pos => fd.append('positionsApplied', pos));
 
   document.querySelectorAll('[name]:not([name="positionsApplied"])').forEach(inp => {
     if (inp.type === 'file') {
@@ -176,31 +172,109 @@ function buildFormData() {
       fd.append(inp.name, inp.value.trim());
     }
   });
-
   return fd;
 }
 
-// (REST OF FILE EXACT SAME — NO CHANGE)
+// 🔹 New: Handle the 4-digit OTP cells
+function initOTPCells() {
+  const cells = [el('d0'), el('d1'), el('d2'), el('d3')];
+  cells.forEach((cell, idx) => {
+    cell.addEventListener('input', (e) => {
+      if (e.target.value && idx < 3) cells[idx + 1].focus();
+    });
+    cell.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !e.target.value && idx > 0) cells[idx - 1].focus();
+    });
+  });
+}
+
+// 🔹 Form Submission Logic
+async function onFormSubmit(e) {
+  e.preventDefault();
+  if (!validateAll()) return;
+
+  const btn = el('submitBtn');
+  setLoading(btn, true);
+
+  try {
+    const response = await fetch(`${API_BASE}/submit`, {
+      method: 'POST',
+      body: buildFormData()
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      nominationId = result.nominationId;
+      openOTPModal();
+    } else {
+      // Handle the specific eligibility error from backend
+      if (response.status === 400 || response.status === 403) {
+        el('eligibilityError').style.display = 'block';
+      }
+      toast(result.message || 'Submission failed', 'err');
+    }
+  } catch (err) {
+    toast('Server error. Try again later.', 'err');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+// 🔹 OTP Modal Handlers
+function openOTPModal() {
+  show(el('otpModal'));
+  document.body.style.overflow = 'hidden';
+  startTimer();
+}
+
+function startTimer() {
+  timerRemaining = OTP_SEC;
+  timerInterval = setInterval(() => {
+    timerRemaining--;
+    const min = Math.floor(timerRemaining / 60);
+    const sec = timerRemaining % 60;
+    el('otpTimer').textContent = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+    if (timerRemaining <= 0) clearInterval(timerInterval);
+  }, 1000);
+}
+
+// 🔹 OTP Verification Logic
+async function onVerifyOTP() {
+  const code = [el('d0'), el('d1'), el('d2'), el('d3')].map(i => i.value).join('');
+  if (code.length < 4) return toast('Enter 4-digit code', 'err');
+
+  const btn = el('verifyBtn');
+  setLoading(btn, true);
+
+  try {
+    const res = await fetch(`${API_BASE}/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nominationId, otp: code })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      hide(el('otpModal'));
+      el('successId').textContent = nominationId;
+      show(el('successOverlay'));
+    } else {
+      toast(data.message, 'err');
+    }
+  } catch (err) {
+    toast('Verification failed', 'err');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+// (REST OF FILE HANDLERS)
 
 document.addEventListener('DOMContentLoaded', () => {
   el('nominationForm').addEventListener('submit', onFormSubmit);
-
   initUploadZone('paymentScreenshot');
   initUploadZone('proofOfAssociation');
-
   initOTPCells();
-  initLiveValidation();
-
-  el('verifyBtn').addEventListener('click', onVerifyOTP);
-  el('resendBtn').addEventListener('click', onResendOTP);
-
-  el('otpModal').addEventListener('click', (e) => {
-    if (e.target === el('otpModal')) closeOTPModal();
-  });
-
-  document.querySelectorAll('.upload-input').forEach(inp => {
-    inp.addEventListener('change', updateProgress);
-  });
-
   updateProgress();
 });

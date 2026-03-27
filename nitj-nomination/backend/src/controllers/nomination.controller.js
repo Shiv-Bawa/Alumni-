@@ -16,11 +16,11 @@ const {
 
 /*
 Flow:
-User submits form                     ->
+User submits form                    ->
 Data stored with status = pending_otp ->
 OTP generated + hashed + saved        ->
-User enters OTP                       ->
-OTP verified                          ->
+User enters OTP                      ->
+OTP verified                        ->
 Status changed to submitted           ->
 Confirmation email sent
 */
@@ -105,8 +105,23 @@ const submitNomination = async (req, res, next) => {
       candidateDetails: {
         fullName: body.fullName,
         email: candidateEmail,
-        mobile: body.mobile
+        mobile: body.mobile,
+        // Adding missing fields for consistency with model
+        rollNumber: body.rollNumber,
+        yearOfPassingOut: body.yearOfPassingOut,
+        branch: body.branch,
+        currentCity: body.currentCity,
+        currentCountry: body.currentCountry,
+        company: body.company,
+        designation: body.designation
       },
+      // Storing file paths for Admin verification [cite: 66, 92]
+      paymentDetails: {
+        transactionNumber: body.transactionNumber,
+        paymentScreenshotPath: files.paymentScreenshot[0].path
+      },
+      proofOfAssociationPath: files.proofOfAssociation[0].path,
+      declarationAccepted: body.declarationAccepted === 'true' || body.declarationAccepted === true,
       status: 'pending_otp',
       otpHash,
       otpExpiry: getOTPExpiry(),
@@ -243,9 +258,36 @@ const resendOTP = async (req, res, next) => {
   }
 };
 
+// 🔹 Admin: Get all submitted nominations for verification [cite: 141]
+const getAllNominations = async (req, res, next) => {
+  try {
+    const nominations = await Nomination.find({ status: 'submitted' });
+    res.status(200).json({ success: true, data: nominations });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 🔹 Admin: Manually verify candidate eligibility [cite: 109]
+const verifyCandidateByAdmin = async (req, res, next) => {
+  try {
+    const { nominationId, isVerified } = req.body;
+    const nomination = await Nomination.findOneAndUpdate(
+      { nominationId },
+      { isAdminVerified: isVerified },
+      { new: true }
+    );
+    res.status(200).json({ success: true, message: `Candidate ${isVerified ? 'Approved' : 'Rejected'}` });
+  } catch (err) {
+    next(err);
+  }
+};
+
 
 module.exports = {
   submitNomination,
   verifyOTPAndConfirm,
-  resendOTP
+  resendOTP,
+  getAllNominations,
+  verifyCandidateByAdmin
 };

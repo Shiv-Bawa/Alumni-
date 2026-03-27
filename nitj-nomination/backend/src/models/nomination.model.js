@@ -16,12 +16,12 @@ const NominationSchema = new mongoose.Schema(
     nominationId: {
       type:    String,
       default: () => `NITJ-${uuidv4().slice(0, 8).toUpperCase()}`,
-      unique:  true, // ✅ FIX: removed index:true
+      unique:  true, 
     },
 
     // Section 1: Positions 
     positionsApplied: {
-      type: String,
+      type: [String], // Updated to array to allow multiple selections per PDF 
       enum: VALID_POSITIONS,
       required: true,
       validate: {
@@ -142,10 +142,21 @@ const NominationSchema = new mongoose.Schema(
       select: false 
     },
 
+    // --- REQUIRED CHANGES FOR ADMIN & RESULTS ---
+    isAdminVerified: { 
+      type: Boolean, 
+      default: false 
+    },
+    votes: { 
+      type: Number, 
+      default: 0 
+    },
+    // --------------------------------------------
+
     // Status
     status: {
       type:    String,
-      enum:    ['pending_otp', 'submitted'],
+      enum:    ['pending_otp', 'submitted', 'rejected'], // Added 'rejected' for admin use
       default: 'pending_otp',
     },
 
