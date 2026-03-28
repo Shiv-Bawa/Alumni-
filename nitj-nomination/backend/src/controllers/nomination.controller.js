@@ -46,29 +46,22 @@ const submitNomination = async (req, res, next) => {
 
     const body = req.body;
 
-    // 🔥 FIX 1: Handle position (ONLY ONE allowed)
+    // 🔥 FIX 1: Handle positions (Updated to handle Array from Frontend)
     let positionsApplied = req.body.positionsApplied;
 
-    // ❌ If array comes (Postman or hack)
-    if (Array.isArray(positionsApplied)) {
+    // Ensure positionsApplied is an array for the database
+    if (typeof positionsApplied === 'string') {
+        positionsApplied = [positionsApplied.trim()];
+    }
+
+    // ❌ Validate at least one selection
+    if (!positionsApplied || !Array.isArray(positionsApplied) || positionsApplied.length === 0) {
       deleteUploadedFiles(files);
       return res.status(400).json({
         success: false,
-        message: "Only one position can be selected"
+        message: "Select at least one valid position"
       });
     }
-
-    // ❌ Validate single value
-    if (!positionsApplied || typeof positionsApplied !== "string") {
-      deleteUploadedFiles(files);
-      return res.status(400).json({
-        success: false,
-        message: "Select a valid position"
-      });
-    }
-
-    // Clean value
-    positionsApplied = positionsApplied.trim();
 
     // 🔥 FIX 2: Correct email extraction
     const candidateEmail = body.email?.trim().toLowerCase();
@@ -77,14 +70,14 @@ const submitNomination = async (req, res, next) => {
     const existing = await Nomination.findOne({
       'candidateDetails.email': candidateEmail,
       status: 'submitted',
-      positionsApplied: positionsApplied
+      positionsApplied: { $in: positionsApplied } // Checks if any selected position was already applied for
     });
 
     if (existing) {
       deleteUploadedFiles(files);
       return res.status(409).json({
         success: false,
-        message: "You have already applied for this position."
+        message: "You have already applied for one of these positions."
       });
     }
 
@@ -115,7 +108,7 @@ const submitNomination = async (req, res, next) => {
         company: body.company,
         designation: body.designation
       },
-      // Storing file paths for Admin verification [cite: 66, 92]
+      // Storing file paths for Admin verification
       paymentDetails: {
         transactionNumber: body.transactionNumber,
         paymentScreenshotPath: files.paymentScreenshot[0].path
@@ -127,7 +120,9 @@ const submitNomination = async (req, res, next) => {
       otpExpiry: getOTPExpiry(),
     });
 
-    console.log("Saved nomination:", nomination);
+    console.log("--------------------------");
+    console.log(`OTP for ${candidateEmail} is: ${otp}`);
+    console.log("--------------------------");
 
     // 🔹 Send OTP email
     try {
@@ -137,8 +132,6 @@ const submitNomination = async (req, res, next) => {
         otp,
         nominationId: nomination.nominationId,
       });
-
-      console.log("Generated OTP:", otp);
     } catch (emailErr) {
       console.error('OTP email failed:', emailErr.message);
     }
@@ -258,7 +251,7 @@ const resendOTP = async (req, res, next) => {
   }
 };
 
-// 🔹 Admin: Get all submitted nominations for verification [cite: 141]
+// 🔹 Admin: Get all submitted nominations for verification
 const getAllNominations = async (req, res, next) => {
   try {
     const nominations = await Nomination.find({ status: 'submitted' });
@@ -268,7 +261,7 @@ const getAllNominations = async (req, res, next) => {
   }
 };
 
-// 🔹 Admin: Manually verify candidate eligibility [cite: 109]
+// 🔹 Admin: Manually verify candidate eligibility
 const verifyCandidateByAdmin = async (req, res, next) => {
   try {
     const { nominationId, isVerified } = req.body;

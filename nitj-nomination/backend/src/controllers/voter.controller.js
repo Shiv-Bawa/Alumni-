@@ -5,322 +5,231 @@ const Nomination = require('../models/nomination.model');
 const { generateOTP, hashOTP, verifyOTP, getOTPExpiry, isOTPExpired } = require('../services/otp.service');
 const { sendOTPEmail } = require('../services/email.service');
 
-// register voter 
+// 1. Register Voter & Request OTP
 const registerVoter = async (req, res) => {
   try {
-    const {
-      fullName, rollNumber, yearOfPassing, branch,
-      email, mobile, cityCountry, company, designation,
-    } = req.body;
-
+    const { fullName, rollNumber, email } = req.body;
     const normalizedEmail = email.trim().toLowerCase();
 
-    // checking from database
-    // 🔥 UPDATE: Check against Nomination records OR a master eligibility dataset
-    const alumniRecord = await Nomination.findOne({
-      'candidateDetails.email': normalizedEmail,
-      status: 'submitted'
+    let voter = await Voter.findOne({ 
+      email: normalizedEmail,
+      rollNumber: rollNumber.trim() 
     });
 
-    if (!alumniRecord) {
+    if (!voter) {
       return res.status(400).json({
         success: false,
-        message:
-          'You have not registered with the NITJ Alumni Association with the used email ID. ' +
-          'Please register at the following link for participation in the next election: ' +
-          'https://www.nitjaa.com/signup',
+        message: 'You have not registered with the NITJ Alumni Association with the used email ID. Please register at: https://www.nitjaa.com/signup',
       });
     }
 
-    // Check if voter already voted
-    let voter = await Voter.findOne({ email: normalizedEmail });
-
-    if (voter && voter.emailVerified && voter.hasVoted) {
+    if (voter.hasVoted) {
       return res.status(400).json({ success: false, message: 'You have already cast your vote.' });
     }
 
-    // OTP rate limit: max 5 per hour
     const now = new Date();
-    if (voter) {
-      const windowStart   = voter.otpRequestWindowStart || new Date(0);
-      const windowElapsed = (now - windowStart) / 1000 / 60; // minutes
-      if (windowElapsed < 60 && voter.otpRequestCount >= 5) {
-        return res.status(429).json({
-          success: false,
-          message: 'Maximum OTP requests exceeded. Please try again after 1 hour.',
-        });
-      }
-      if (windowElapsed >= 60) {
-        voter.otpRequestCount = 0;
-        voter.otpRequestWindowStart = now;
-      }
-    }
-
-    const otp    = generateOTP();
-    const hashed = await hashOTP(otp);
-    const expiry = getOTPExpiry(10); // 10 minutes
-
-    if (voter) {
-      voter.fullName      = fullName;
-      voter.rollNumber    = rollNumber;
-      voter.yearOfPassing = yearOfPassing;
-      voter.branch        = branch;
-      voter.mobile        = mobile;
-      voter.cityCountry   = cityCountry;
-      voter.company       = company;
-      voter.designation   = designation;
-      voter.otpHash       = hashed;
-      voter.otpExpiry     = expiry;
-      voter.otpAttempts   = 0;
-      voter.emailVerified = false;
-      voter.otpRequestCount = (voter.otpRequestCount || 0) + 1;
-      if (!voter.otpRequestWindowStart) voter.otpRequestWindowStart = now;
-      voter.registrationIp = req.ip;
-    } else {
-      voter = new Voter({
-        fullName, rollNumber, yearOfPassing, branch,
-        email: normalizedEmail, mobile, cityCountry, company, designation,
-        otpHash: hashed, otpExpiry: expiry,
-        otpRequestCount: 1, otpRequestWindowStart: now,
-        registrationIp: req.ip,
+    const windowStart = voter.otpRequestWindowStart || new Date(0);
+    const windowElapsed = (now - windowStart) / 1000 / 60; 
+    
+    if (windowElapsed < 60 && voter.otpRequestCount >= 5) {
+      return res.status(429).json({
+        success: false,
+        message: 'Maximum OTP requests exceeded. Please try again after 1 hour.',
       });
     }
 
-    await voter.save();
+    if (windowElapsed >= 60) {
+      voter.otpRequestCount = 0;
+      voter.otpRequestWindowStart = now;
+    }
 
-    // Send OTP email
-    await sendOTPEmail(normalizedEmail, fullName, otp, 'voter');
+    const otp = generateOTP();
+    const hashed = await hashOTP(otp);
+    const expiry = getOTPExpiry(10); 
+
+    voter.otpHash = hashed;
+    voter.otpExpiry = expiry;
+    voter.otpAttempts = 0;
+    voter.emailVerified = false;
+    voter.otpRequestCount = (voter.otpRequestCount || 0) + 1;
+    voter.registrationIp = req.ip;
+
+    await voter.save();
+    console.log(`\n[DEV ONLY] OTP for ${normalizedEmail} is: ${otp}\n`);
+
+    await sendOTPEmail(normalizedEmail, voter.fullName, otp, 'voter');
 
     return res.status(200).json({
       success: true,
       message: 'OTP sent to your registered email. Valid for 10 minutes.',
       voterId: voter._id,
     });
+
   } catch (err) {
-    if (err.code === 11000) {
-      const field = Object.keys(err.keyPattern)[0];
-      return res.status(400).json({
-        success: false,
-        message: `A voter with this ${field === 'rollNumber' ? 'Roll Number' : 'Email'} already exists.`,
-      });
-    }
     console.error('registerVoter error:', err);
     return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
   }
 };
 
-// verifying otp
+// 2. Verify OTP
 const verifyVoterOTP = async (req, res) => {
   try {
     const { voterId, otp } = req.body;
-
     const voter = await Voter.findById(voterId).select('+otpHash +otpExpiry +otpAttempts');
+
     if (!voter) return res.status(404).json({ success: false, message: 'Voter not found.' });
-
-    if (voter.emailVerified && voter.hasVoted) {
-      return res.status(400).json({ success: false, message: 'You have already cast your vote.' });
-    }
-
-    if (voter.otpAttempts >= 5) {
-      return res.status(429).json({ success: false, message: 'Too many failed attempts. Please request a new OTP.' });
-    }
-
-    if (!voter.otpHash || !voter.otpExpiry) {
-      return res.status(400).json({ success: false, message: 'No OTP found. Please request a new one.' });
-    }
+    if (voter.hasVoted) return res.status(400).json({ success: false, message: 'Already voted.' });
 
     if (isOTPExpired(voter.otpExpiry)) {
-      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+      return res.status(400).json({ success: false, message: 'OTP expired.' });
     }
 
     const valid = await verifyOTP(otp.toString(), voter.otpHash);
     if (!valid) {
       voter.otpAttempts += 1;
       await voter.save();
-      return res.status(400).json({
-        success: false,
-        message: `Invalid OTP. ${5 - voter.otpAttempts} attempts remaining.`,
-      });
+      return res.status(400).json({ success: false, message: 'Invalid OTP.' });
     }
 
-    // Clear OTP and mark verified
     voter.emailVerified = true;
-    voter.otpHash       = undefined;
-    voter.otpExpiry     = undefined;
-    voter.otpAttempts   = 0;
+    voter.otpHash = undefined;
+    voter.otpExpiry = undefined;
     await voter.save();
 
-    return res.status(200).json({
-      success: true,
-      message: 'Email verified successfully.',
-      voterId: voter._id,
-    });
+    return res.status(200).json({ success: true, message: 'Verified.', voterId: voter._id });
   } catch (err) {
-    console.error('verifyVoterOTP error:', err);
-    return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
+    return res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
 
-// Ballot for candidates 
+// 3. Get Ballot
 const getBallotCandidates = async (req, res) => {
   try {
     const { voterId } = req.params;
-
     const voter = await Voter.findById(voterId);
-    if (!voter)             return res.status(404).json({ success: false, message: 'Voter not found.' });
-    if (!voter.emailVerified) return res.status(403).json({ success: false, message: 'Email not verified.' });
-    if (voter.hasVoted)     return res.status(400).json({ success: false, message: 'You have already cast your vote.' });
+
+    if (!voter || !voter.emailVerified || voter.hasVoted) {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
+    }
 
     const positions = ['President', 'General Secretary', 'Treasurer', 'Co-Treasurer', 'Executive Council Member'];
 
-    // 🔥 UPDATE: Added isAdminVerified: true to ensure only approved candidates show up
     const candidates = await Nomination.find(
-      { 
-        positionsApplied: { $in: positions }, 
-        status: 'submitted',
-        isAdminVerified: true 
-      },
+      { status: 'submitted', isAdminVerified: true },
       {
         nominationId: 1,
         positionsApplied: 1,
         'candidateDetails.fullName': 1,
         'candidateDetails.branch': 1,
         'candidateDetails.yearOfPassingOut': 1,
-        'candidateDetails.designation': 1,
-        'candidateDetails.company': 1,
       }
     ).lean();
 
-    // Group by position
     const ballot = {};
     positions.forEach(pos => { ballot[pos] = []; });
 
     candidates.forEach(c => {
-      const pos = c.positionsApplied; // 🔥 FIX (now string, not array)
-
-      if (ballot[pos]) {
-        ballot[pos].push({
-          _id:          c._id,
-          nominationId: c.nominationId,
-          fullName:     c.candidateDetails.fullName,
-          branch:       c.candidateDetails.branch,
-          yearOfPassing: c.candidateDetails.yearOfPassingOut,
-          designation:  c.candidateDetails.designation,
-          company:      c.candidateDetails.company,
-        });
-      }
+      const posArray = Array.isArray(c.positionsApplied) ? c.positionsApplied : [c.positionsApplied];
+      posArray.forEach(pos => {
+        if (ballot[pos]) {
+          ballot[pos].push({
+            _id: c._id,
+            fullName: c.candidateDetails.fullName,
+            branch: c.candidateDetails.branch,
+            yearOfPassing: c.candidateDetails.yearOfPassingOut,
+          });
+        }
+      });
     });
 
     return res.status(200).json({ success: true, ballot });
   } catch (err) {
-    console.error('getBallotCandidates error:', err);
-    return res.status(500).json({ success: false, message: 'Server error.' });
+    return res.status(500).json({ success: false, message: 'Error loading ballot.' });
   }
 };
 
-// submit the vote
+// 4. Submit the Vote
 const submitVote = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
   try {
-    const {
-      voterId,
-      presidentCandidateId,
-      generalSecretaryCandidateId,
-      treasurerCandidateId,
-      coTreasurerCandidateId,
-      executiveMemberIds,
-    } = req.body;
-
-    // Validate executive members count
-    if (!Array.isArray(executiveMemberIds) || executiveMemberIds.length === 0 || executiveMemberIds.length > 8) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ success: false, message: 'Select between 1 and 8 Executive Council Members.' });
-    }
-
-    const voter = await Voter.findById(voterId).session(session);
-    if (!voter) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(404).json({ success: false, message: 'Voter not found.' });
-    }
-
-    if (!voter.emailVerified) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(403).json({ success: false, message: 'Email not verified.' });
-    }
-
-    if (voter.hasVoted) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ success: false, message: 'You have already cast your vote.' });
-    }
-
-    const [vote] = await Vote.create(
-      [{
-        voterId,
-        presidentCandidateId,
-        generalSecretaryCandidateId,
-        treasurerCandidateId,
-        coTreasurerCandidateId,
-        submittedIp: req.ip,
-      }],
-      { session }
-    );
-
-    const execDocs = executiveMemberIds.map(cid => ({ voteId: vote._id, candidateId: cid }));
-    await VoteExecutiveMember.insertMany(execDocs, { session });
-
-    // 🔥 UPDATE: Increment vote counts in Nomination model for Admin Results
-    const allCandidateIds = [
+    const { 
+      voterId, 
       presidentCandidateId, 
       generalSecretaryCandidateId, 
       treasurerCandidateId, 
       coTreasurerCandidateId, 
-      ...executiveMemberIds
-    ];
-    
-    await Nomination.updateMany(
-      { _id: { $in: allCandidateIds } },
-      { $inc: { votes: 1 } },
-      { session }
-    );
+      executiveMemberIds 
+    } = req.body;
 
-    voter.hasVoted = true;
-    voter.votedAt  = new Date();
-    voter.votingIp = req.ip;
-    await voter.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Your vote has been cast successfully. Thank you for participating!',
-    });
-  } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
-
-    if (err.code === 11000) {
-      return res.status(400).json({ success: false, message: 'You have already cast your vote.' });
+    const voter = await Voter.findById(voterId);
+    if (!voter || voter.hasVoted) {
+      return res.status(400).json({ success: false, message: 'Voter ineligible or already voted.' });
     }
-    console.error('submitVote error:', err);
-    return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
+
+    const vote = await Vote.create({
+        voterId,
+        presidentCandidateId: presidentCandidateId || null,
+        generalSecretaryCandidateId: generalSecretaryCandidateId || null,
+        treasurerCandidateId: treasurerCandidateId || null,
+        coTreasurerCandidateId: coTreasurerCandidateId || null,
+        submittedIp: req.ip,
+    });
+
+    if (executiveMemberIds && executiveMemberIds.length > 0) {
+      const execDocs = executiveMemberIds.map(cid => ({ voteId: vote._id, candidateId: cid }));
+      await VoteExecutiveMember.insertMany(execDocs);
+    }
+
+    const allIds = [
+      presidentCandidateId, 
+      generalSecretaryCandidateId, 
+      treasurerCandidateId, 
+      coTreasurerCandidateId, 
+      ...(executiveMemberIds || [])
+    ].filter(id => id && mongoose.Types.ObjectId.isValid(id));
+    
+    await Nomination.updateMany({ _id: { $in: allIds } }, { $inc: { votes: 1 } });
+
+    // 🔥 FIXED: Direct update to ensure MongoDB saves 'true' immediately
+    await Voter.findByIdAndUpdate(voterId, {
+      $set: {
+        hasVoted: true,
+        votedAt: new Date(),
+        votingIp: req.ip
+      }
+    });
+
+    console.log(`>>> Success: Voter ${voterId} marked as hasVoted: true in DB.`);
+
+    return res.status(200).json({ success: true, message: 'Your vote has been cast successfully!' });
+
+  } catch (err) {
+    console.error('Vote Submission Error:', err.message);
+    return res.status(500).json({ success: false, message: 'Server error during voting.' });
   }
 };
 
-// check voter status 
+// 5. Check Voter Status
 const getVoterStatus = async (req, res) => {
   try {
-    const voter = await Voter.findById(req.params.voterId, 'emailVerified hasVoted');
-    if (!voter) return res.status(404).json({ success: false, message: 'Voter not found.' });
-    return res.status(200).json({ success: true, emailVerified: voter.emailVerified, hasVoted: voter.hasVoted });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: 'Server error.' });
+    const voter = await Voter.findById(req.params.voterId);
+    if (!voter) {
+      return res.status(404).json({ success: false, message: 'Voter not found.' });
+    }
+    return res.json({ 
+      success: true, 
+      emailVerified: voter.emailVerified, 
+      hasVoted: voter.hasVoted 
+    });
+  } catch (err) { 
+    console.error('getVoterStatus error:', err);
+    return res.status(500).json({ success: false, message: 'Server error.' }); 
   }
 };
 
-module.exports = { registerVoter, verifyVoterOTP, getBallotCandidates, submitVote, getVoterStatus };
+module.exports = { 
+  registerVoter, 
+  verifyVoterOTP, 
+  getBallotCandidates, 
+  submitVote, 
+  getVoterStatus 
+};

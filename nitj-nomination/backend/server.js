@@ -17,15 +17,15 @@ const app = express();
 connectDB();
 
 // security header 
-app.use(helmet());
+//app.use(helmet());
 
-// to allow forntend 
+// To allow frontend (Updated for development)
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  methods: ['GET', 'POST'],
-  credentials: false,
+  // This allows both your Live Server and any future React/Next.js app
+  origin: ['http://localhost:3000', 'http://127.0.0.1:5501', 'http://localhost:5501'], 
+  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'], // Added PATCH for Admin approvals
+  credentials: true,
 }));
-
 
 
 

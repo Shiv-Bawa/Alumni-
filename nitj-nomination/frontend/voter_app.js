@@ -135,29 +135,49 @@ window.handleSelection = (input, id) => {
   input.checked ? card.classList.add('selected') : card.classList.remove('selected');
 };
 
-// 5. Submit Final Vote [cite: 108]
+// 5. Submit Final Vote (FIXED NAMING)
 document.getElementById('final-ballot-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  
-  const getVal = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value;
-  
-  const payload = {
-    voterId: currentVoterId,
-    presidentCandidateId: getVal('President'),
-    generalSecretaryCandidateId: getVal('GeneralSecretary'),
-    treasurerCandidateId: getVal('Treasurer'),
-    coTreasurerCandidateId: getVal('CoTreasurer'),
-    executiveMemberIds: Array.from(document.querySelectorAll('input[name="executiveMemberIds"]:checked')).map(i => i.value)
-  };
+    e.preventDefault();
+    
+    // This helper now removes spaces to match the input names like "GeneralSecretary"
+    const getVal = (name) => {
+        const cleanName = name.replace(/\s+/g, ''); 
+        return document.querySelector(`input[name="${cleanName}"]:checked`)?.value;
+    };
+    
+    const payload = {
+        voterId: currentVoterId,
+        presidentCandidateId: getVal('President'),
+        generalSecretaryCandidateId: getVal('General Secretary'), // Space is fine here, getVal cleans it
+        treasurerCandidateId: getVal('Treasurer'),
+        coTreasurerCandidateId: getVal('Co-Treasurer'),
+        executiveMemberIds: Array.from(document.querySelectorAll('input[name="executiveMemberIds"]:checked')).map(i => i.value)
+    };
 
-  try {
-    const res = await fetch(`${API_VOTER}/submit-vote`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (data.success) showPanel('success');
-    else alert(data.message);
-  } catch (err) { alert("Submission failed"); }
+    // DEBUG: Right-click -> Inspect -> Console to see this!
+    console.log("Voter ID:", currentVoterId);
+    console.log("Full Payload:", payload);
+
+    if (!payload.voterId) {
+        return alert("Voter session expired. Please refresh and log in again.");
+    }
+
+    try {
+        const res = await fetch(`${API_VOTER}/submit-vote`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showPanel('success');
+        } else {
+            alert(data.message || "Submission failed.");
+        }
+    } catch (err) { 
+        console.error("Submission failed", err);
+        alert("Network Error: Could not reach the server."); 
+    }
 });
