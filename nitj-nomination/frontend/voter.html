@@ -184,9 +184,10 @@ Nomination Form</h1>
 
 
 <script>
-  const API = '';
+  // 🔥 FIX 1: Point strictly to your Node Backend (Port 5000)
+  const API = 'http://localhost:5000';
 
-  // app state 
+  // App state 
   let voterId    = null;
   let voterEmail = '';
   let otpTimer   = null;
@@ -200,19 +201,19 @@ Nomination Form</h1>
     executiveMembers: [],
   };
 
-
   function showMsg(id, text, type) {
     const el = document.getElementById(id);
+    if(!el) return;
     el.textContent = text;
     el.className   = `msg show msg-${type}`;
   }
 
   function hideMsg(id) {
-    document.getElementById(id).className = 'msg';
+    const el = document.getElementById(id);
+    if(el) el.className = 'msg';
   }
 
-
-  // navigation
+  // Navigation
   function setStep(n) {
     document.querySelectorAll('.step').forEach((s, i) => {
       s.classList.remove('active', 'done');
@@ -220,47 +221,45 @@ Nomination Form</h1>
       if (i + 1 === n) s.classList.add('active');
     });
     ['register', 'otp', 'ballot', 'confirm'].forEach((name, i) => {
-      document.getElementById(`panel-${name}`).classList.toggle('active', i + 1 === n);
+      const panel = document.getElementById(`panel-${name}`);
+      if(panel) panel.classList.toggle('active', i + 1 === n);
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
- 
-  // time for loading 
   function setLoading(btnId, loading, label) {
     const btn = document.getElementById(btnId);
+    if(!btn) return;
     btn.disabled    = loading;
     btn.textContent = loading ? 'Please wait…' : label;
   }
 
-
-
-  // Rgistration 
-
+  // 1. Voter Registration
   document.getElementById('reg-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     hideMsg('reg-msg');
 
-    const val = (id) => document.getElementById(id).value.trim();
-
-    const payload = {
-      fullName:      val('fullName'),
-      rollNumber:    val('rollNumber'),
-      yearOfPassing: parseInt(val('yearOfPassing')),
-      branch:        val('branch'),
-      email:         val('email'),
-      mobile:        val('mobile'),
-      cityCountry:   val('cityCountry'),
-      company:       val('company'),
-      designation:   val('designation'),
+    // Helper function to get value by ID safely
+    const val = (id) => {
+      const el = document.getElementById(id);
+      return el ? el.value.trim() : "";
     };
 
-    // confirm all fields filled
-    const missing = Object.entries(payload).some(([k, v]) => !v && k !== 'yearOfPassing');
-    if (missing || !payload.yearOfPassing) {
-      showMsg('reg-msg', 'Please fill in all required fields.', 'error');
-      return;
-    }
+    // 🔥 MATCHING YOUR HTML IDs EXACTLY
+    // 🔥 EXACT MATCH for VoterValidation.middleware.js
+    const payload = {
+      fullName:      document.getElementById('fullName').value.trim(),
+      rollNumber:    document.getElementById('rollNumber').value.trim(),
+      yearOfPassing: parseInt(document.getElementById('yearOfPassing').value), 
+      branch:        document.getElementById('branch').value.trim(),
+      email:         document.getElementById('email').value.trim(),
+      mobile:        document.getElementById('mobile').value.trim().replace(/\s+/g, ''), 
+      cityCountry:   document.getElementById('cityCountry').value.trim(), // MUST MATCH ID
+      company:       document.getElementById('company').value.trim(),
+      designation:   document.getElementById('designation').value.trim(),
+    };
+
+    console.log("🚀 SENDING TO SERVER:", payload);
 
     setLoading('reg-btn', true, 'Submit & Send 4-Digit Code');
 
@@ -270,7 +269,9 @@ Nomination Form</h1>
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload),
       });
+      
       const data = await res.json();
+      console.log("📥 SERVER RESPONSE:", data);
 
       if (data.success) {
         voterId    = data.voterId;
@@ -279,44 +280,27 @@ Nomination Form</h1>
         setStep(2);
         startOTPTimer(600); 
       } else {
-
-        showMsg('reg-msg', data.message, 'error');
+        // This will show exactly WHY the server said 400/422
+        const errorText = data.errors ? data.errors.join(' | ') : (data.message || "Invalid Data");
+        showMsg('reg-msg', errorText, 'error');
       }
-    } catch {
-      showMsg('reg-msg', 'Network error. Please check your connection and try again.', 'error');
+    } catch (err) {
+      showMsg('reg-msg', 'Server is offline. Check your terminal.', 'error');
     } finally {
       setLoading('reg-btn', false, 'Submit & Send 4-Digit Code');
     }
   });
-
-
-
-
   
-  // enter 4 digit code
+  
+  // 2. OTP Handling
   const digits = document.querySelectorAll('.otp-digit');
-
   digits.forEach((inp, i) => {
     inp.addEventListener('input', () => {
       inp.value = inp.value.replace(/\D/g, '').slice(0, 1);
-      if (inp.value && i < digits.length - 1) {
-        digits[i + 1].focus();
-      }
+      if (inp.value && i < digits.length - 1) digits[i + 1].focus();
     });
     inp.addEventListener('keydown', (e) => {
-      if (e.key === 'Backspace' && !inp.value && i > 0) {
-        digits[i - 1].focus();
-      }
-    });
-
-    inp.addEventListener('paste', (e) => {
-      e.preventDefault();
-      const pasted = (e.clipboardData || window.clipboardData)
-        .getData('text').replace(/\D/g, '').slice(0, 4);
-      [...pasted].forEach((ch, j) => {
-        if (digits[j]) digits[j].value = ch;
-      });
-      if (digits[pasted.length - 1]) digits[pasted.length - 1].focus();
+      if (e.key === 'Backspace' && !inp.value && i > 0) digits[i - 1].focus();
     });
   });
 
@@ -331,22 +315,16 @@ Nomination Form</h1>
     resendEl.style.display = 'none';
     let remaining = seconds;
 
-    timerEl.textContent = `Code expires in ${fmtTime(remaining)}`;
-
     otpTimer = setInterval(() => {
       remaining--;
       if (remaining <= 0) {
         clearInterval(otpTimer);
-        timerEl.textContent       = 'Code has expired.';
-        resendEl.style.display    = 'block';
+        timerEl.textContent = 'Code has expired.';
+        resendEl.style.display = 'block';
       } else {
-        timerEl.textContent = `Code expires in ${fmtTime(remaining)}`;
+        timerEl.textContent = `Code expires in ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`;
       }
     }, 1000);
-  }
-
-  function fmtTime(s) {
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
   document.getElementById('otp-verify-btn').addEventListener('click', async () => {
@@ -356,7 +334,6 @@ Nomination Form</h1>
       return;
     }
 
-    hideMsg('otp-msg');
     setLoading('otp-verify-btn', true, 'Open Voting Ballot');
 
     try {
@@ -381,198 +358,84 @@ Nomination Form</h1>
     }
   });
 
-  document.getElementById('resend-link').addEventListener('click', () => {
-    digits.forEach(d => d.value = '');
-    digits[0].focus();
-    document.getElementById('reg-form').dispatchEvent(new Event('submit'));
-    setStep(2);
-  });
-
-
-  // voting ballot
+  // 3. Ballot Loading & Voting
   async function loadBallot() {
     const container = document.getElementById('ballot-container');
-    container.innerHTML = '<p style="color:#aaa;text-align:center;padding:30px 0;">Loading ballot…</p>';
-
     try {
       const res  = await fetch(`${API}/api/voter/ballot/${voterId}`);
       const data = await res.json();
-
-      if (!data.success) {
+      if (data.success) {
+        ballot = data.ballot;
+        renderBallot();
+      } else {
         container.innerHTML = `<p style="color:red;text-align:center">${data.message}</p>`;
-        return;
       }
-      ballot = data.ballot;
-      renderBallot();
     } catch {
-      container.innerHTML = '<p style="color:red;text-align:center">Failed to load ballot. Please refresh the page.</p>';
+      container.innerHTML = '<p style="color:red;text-align:center">Failed to load ballot.</p>';
     }
   }
 
   function renderBallot() {
     const container = document.getElementById('ballot-container');
-
     const positions = [
-      {
-        key:   'President',
-        label: 'President',
-        field: 'president',
-        multi: false,
-        rule:  'Select 1 candidate',
-      },
-      {
-        key:   'General Secretary',
-        label: 'General Secretary',
-        field: 'generalSecretary',
-        multi: false,
-        rule:  'Select 1 candidate',
-      },
-      {
-        key:   'Treasurer',
-        label: 'Treasurer',
-        field: 'treasurer',
-        multi: false,
-        rule:  'Select 1 candidate',
-      },
-      {
-        key:   'Co-Treasurer',
-        label: 'Co-Treasurer',
-        field: 'coTreasurer',
-        multi: false,
-        rule:  'Select 1 candidate',
-      },
-      {
-        key:   'Executive Council Member',
-        label: 'Executive Council Member (8 Nos)',
-        field: 'executiveMembers',
-        multi: true,
-        rule:  'Select up to 8 candidates',
-      },
+      { key: 'President', label: 'President', field: 'president', multi: false, rule: 'Select 1' },
+      { key: 'General Secretary', label: 'General Secretary', field: 'generalSecretary', multi: false, rule: 'Select 1' },
+      { key: 'Treasurer', label: 'Treasurer', field: 'treasurer', multi: false, rule: 'Select 1' },
+      { key: 'Co-Treasurer', label: 'Co-Treasurer', field: 'coTreasurer', multi: false, rule: 'Select 1' },
+      { key: 'Executive Council Member', label: 'Executive Council Member', field: 'executiveMembers', multi: true, rule: 'Select up to 8' }
     ];
 
-    container.innerHTML = positions.map((pos, idx) => {
+    container.innerHTML = positions.map(pos => {
       const cands = ballot[pos.key] || [];
-
-      const execCounter = pos.multi
-        ? `<p class="exec-counter">Selected: <span id="exec-count">0</span> / 8</p>`
-        : '';
-
-      const noCandsMsg = '<p style="color:#bbb;font-size:14px;padding:8px 0;">No candidates registered for this position yet.</p>';
-
-      const cards = cands.length === 0
-        ? noCandsMsg
-        : cands.map(c => `
-          <label class="cand-card${pos.multi ? ' exec-style' : ''}"
-                 id="cc-${pos.field}-${c._id}">
-            <input
-              type="${pos.multi ? 'checkbox' : 'radio'}"
-              name="${pos.field}"
-              value="${c._id}"
-              onchange="handleSelect('${pos.field}','${c._id}',this,${pos.multi})"
-            />
-            <div class="cand-name">${c.fullName}</div>
-            <div class="cand-meta">${c.branch} &nbsp;·&nbsp; ${c.yearOfPassing}<br>${c.designation} — ${c.company}</div>
-            <span class="cand-dot"></span>
-          </label>
-        `).join('');
-
-      const sep = idx < positions.length - 1 ? '<hr class="ballot-sep">' : '';
-
       return `
         <div class="position-block">
           <div class="position-header">
-            <span class="position-name">${pos.label}</span>
-            <span class="position-rule">${pos.rule}</span>
+            <strong>${pos.label}</strong> <small>${pos.rule}</small>
           </div>
-          <hr class="position-hr">
-          ${execCounter}
-          <div class="candidate-grid">${cards}</div>
-        </div>
-        ${sep}
-      `;
+          <div class="candidate-grid">
+            ${cands.map(c => `
+              <label class="cand-card" id="cc-${pos.field}-${c._id}">
+                <input type="${pos.multi ? 'checkbox' : 'radio'}" name="${pos.field}" value="${c._id}" onchange="handleSelect('${pos.field}','${c._id}',this,${pos.multi})">
+                <span>${c.fullName}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div><hr>`;
     }).join('');
-
-    checkAllSelected();
   }
 
-  function handleSelect(field, candidateId, inputEl, isMulti) {
-    const card = document.getElementById(`cc-${field}-${candidateId}`);
-
-    if (isMulti) {
-      if (inputEl.checked) {
-        if (selections.executiveMembers.length >= 8) {
-          inputEl.checked = false;
-          return;
-        }
-        selections.executiveMembers.push(candidateId);
-        card.classList.add('selected');
-      } else {
-        selections.executiveMembers = selections.executiveMembers.filter(id => id !== candidateId);
-        card.classList.remove('selected');
-      }
-      const countEl = document.getElementById('exec-count');
-      if (countEl) countEl.textContent = selections.executiveMembers.length;
+  window.handleSelect = (field, candId, input, isMulti) => {
+    const card = document.getElementById(`cc-${field}-${candId}`);
+    if (!isMulti) {
+      document.querySelectorAll(`input[name="${field}"]`).forEach(i => document.getElementById(`cc-${field}-${i.value}`)?.classList.remove('selected'));
+      selections[field] = candId;
     } else {
-
-
-      // Deselect all in same group
-      document.querySelectorAll(`input[name="${field}"]`).forEach(inp => {
-        document.getElementById(`cc-${field}-${inp.value}`)?.classList.remove('selected');
-      });
-      selections[field] = candidateId;
-      card.classList.add('selected');
+      if (input.checked && selections.executiveMembers.length >= 8) { input.checked = false; return; }
+      input.checked ? selections.executiveMembers.push(candId) : selections.executiveMembers = selections.executiveMembers.filter(id => id !== candId);
     }
-
-    checkAllSelected();
-  }
-
-  function checkAllSelected() {
-    const singles = ['president', 'generalSecretary', 'treasurer', 'coTreasurer'];
-    const allDone = singles.every(f => selections[f] !== null);
-    const execOk  = selections.executiveMembers.length >= 1;
-    document.getElementById('submit-vote-btn').disabled = !(allDone && execOk);
-  }
-
-  
-
-
-  // submitting the vote 
-  let submitting = false;
+    input.checked ? card.classList.add('selected') : card.classList.remove('selected');
+    document.getElementById('submit-vote-btn').disabled = !(['president', 'generalSecretary', 'treasurer', 'coTreasurer'].every(f => selections[f]) && selections.executiveMembers.length > 0);
+  };
 
   document.getElementById('submit-vote-btn').addEventListener('click', async () => {
-    if (submitting) return; // prevent double-click / double API call
-    submitting = true;
-
-    hideMsg('ballot-msg');
-    setLoading('submit-vote-btn', true, 'Submit My Vote');
-
+    setLoading('submit-vote-btn', true, 'Submitting...');
     try {
-      const res  = await fetch(`${API}/api/voter/submit-vote`, {
-        method:  'POST',
+      const res = await fetch(`${API}/api/voter/submit-vote`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
+        body: JSON.stringify({
           voterId,
-          presidentCandidateId:        selections.president,
+          presidentCandidateId: selections.president,
           generalSecretaryCandidateId: selections.generalSecretary,
-          treasurerCandidateId:        selections.treasurer,
-          coTreasurerCandidateId:      selections.coTreasurer,
-          executiveMemberIds:          selections.executiveMembers,
-        }),
+          treasurerCandidateId: selections.treasurer,
+          coTreasurerCandidateId: selections.coTreasurer,
+          executiveMemberIds: selections.executiveMembers
+        })
       });
-      const data = await res.json();
-
-      if (data.success) {
-        setStep(4);
-      } else {
-        showMsg('ballot-msg', data.message, 'error');
-        submitting = false;
-        setLoading('submit-vote-btn', false, 'Submit My Vote');
-      }
-    } catch {
-      showMsg('ballot-msg', 'Network error. Please try again.', 'error');
-      submitting = false;
-      setLoading('submit-vote-btn', false, 'Submit My Vote');
-    }
+      if ((await res.json()).success) setStep(4);
+      else alert("Submission failed.");
+    } catch { alert("Network error."); }
+    finally { setLoading('submit-vote-btn', false, 'Submit My Vote'); }
   });
 </script>
 

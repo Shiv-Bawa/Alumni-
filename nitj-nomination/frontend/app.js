@@ -1,20 +1,29 @@
 'use strict';
 
-//  NOMINATION FORM 
-
 const API_BASE = 'http://localhost:5000/api/nomination';
-const MAX_MB   = 5;
-const OTP_SEC  = 600; // Updated to 10 minutes per framework requirements
+const OTP_SEC  = 600;
 
-// state 
 let nominationId   = null;
 let timerInterval  = null;
 let timerRemaining = OTP_SEC;
 
-const el    = (id)  => document.getElementById(id);
-const show  = (e)  => { e.style.display = ''; };
-const hide  = (e)  => { e.style.display = 'none'; };
-const setErr = (id, msg) => {
+/* ── tiny helpers ─────────────────────────────────────────────────────────── */
+const el   = (id) => document.getElementById(id);
+const show = (e)  => { if (e) e.style.display = ''; };
+const hide = (e)  => { if (e) e.style.display = 'none'; };
+
+const setLoading = (btn, on) => {
+  if (!btn) return;
+  btn.disabled = on;
+  const lbl  = btn.querySelector('.btn-label');
+  const spin = btn.querySelector('.btn-spin');
+  const arr  = btn.querySelector('.btn-arrow');
+  if (lbl)  lbl.style.display  = on ? 'none' : '';
+  if (spin) spin.style.display = on ? ''     : 'none';
+  if (arr)  arr.style.display  = on ? 'none' : '';
+};
+
+const setErr   = (id, msg) => {
   const errEl = el(`err-${id}`);
   if (errEl) errEl.textContent = msg || '';
   const inp = el(id);
@@ -22,259 +31,371 @@ const setErr = (id, msg) => {
 };
 const clearErr = (id) => setErr(id, '');
 
-// Toast
 const toast = (msg, type = '') => {
   const t = el('toast');
-  t.textContent  = msg;
-  t.className    = `toast show${type ? ' ' + type : ''}`;
+  if (!t) return;
+  t.textContent = msg;
+  // CSS classes in this project are 'ok' and 'bad', not 'success'/'err'
+  t.className   = `toast show${type === 'err' ? ' bad' : type === 'ok' ? ' ok' : ''}`;
   clearTimeout(t._tid);
-  t._tid = setTimeout(() => t.classList.remove('show'), 3500);
+  t._tid = setTimeout(() => t.classList.remove('show'), 4500);
 };
 
-// Spinner
-const setLoading = (btn, on) => {
-  btn.disabled = on;
-  const lbl  = btn.querySelector('.btn-label');
-  const spin = btn.querySelector('.btn-spin');
-  const arr  = btn.querySelector('.btn-arrow');
-  if (lbl)  lbl.style.display  = on ? 'none' : '';
-  if (spin) spin.style.display = on ? '' : 'none';
-  if (arr)  arr.style.display  = on ? 'none' : '';
-};
-
-// progress bar 
-const updateProgress = () => {
-  const inputs = Array.from(document.querySelectorAll('.field-input'));
-  const filled = inputs.filter(i => i.value.trim()).length;
-  const pct    = Math.round((filled / inputs.length) * 90);
-  el('progressFill').style.width = pct + '%';
-};
-
-// file upload area 
-function initUploadZone(fieldId) {
-  const zone  = el(`zone-${fieldId}`);
-  const input = el(fieldId);
-  if (!zone || !input) return;
-
-  zone.addEventListener('dragover',  (e) => { e.preventDefault(); zone.classList.add('dragging'); });
-  zone.addEventListener('dragleave', ()  => zone.classList.remove('dragging'));
-  zone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    zone.classList.remove('dragging');
-    if (e.dataTransfer.files[0]) applyFile(fieldId, e.dataTransfer.files[0]);
-  });
-
-  input.addEventListener('change', () => {
-    if (input.files[0]) applyFile(fieldId, input.files[0]);
-  });
-}
-
-function applyFile(fieldId, file) {
-  const zone  = el(`zone-${fieldId}`);
-  const selEl = el(`sel-${fieldId}`);
-  const errEl = el(`err-${fieldId}`);
-
-  const ext     = file.name.split('.').pop().toLowerCase();
-  const okExts  = ['jpg','jpeg','png','pdf'];
-  const okMimes = ['image/jpeg','image/jpg','image/png','application/pdf'];
-
-  if (!okExts.includes(ext) || !okMimes.includes(file.type)) {
-    errEl.textContent = 'Invalid file. Only PDF, JPG, PNG allowed.';
-    zone.classList.remove('uploaded');
-    return;
-  }
-  if (file.size > MAX_MB * 1024 * 1024) {
-    errEl.textContent = `File too large. Max ${MAX_MB} MB allowed.`;
-    zone.classList.remove('uploaded');
-    return;
-  }
-
-  errEl.textContent   = '';
-  zone.classList.add('uploaded');
-  selEl.textContent   = `✓ ${file.name} (${(file.size / 1024).toFixed(0)} KB)`;
-}
-
-// validation part 
+/* ── validation ───────────────────────────────────────────────────────────── */
 const TEXT_FIELDS = [
-  ['c_fullName', 'Full name is required'],
-  ['c_rollNumber', 'Roll number is required'],
-  ['c_year', 'Year of passing is required'],
-  ['c_branch', 'Branch is required'],
-  ['c_email', 'Valid email is required'],
-  ['c_mobile', 'Valid 10-digit mobile is required'],
-  ['c_city', 'Current city is required'],
-  ['c_country', 'Current country is required'],
-  ['c_company', 'Company / Occupation is required'],
+  ['c_fullName',    'Full name is required'],
+  ['c_rollNumber',  'Roll number is required'],
+  ['c_year',        'Year of passing is required'],
+  ['c_branch',      'Branch is required'],
+  ['c_email',       'Email is required'],
+  ['c_mobile',      'Mobile number is required'],
+  ['c_city',        'Current city is required'],
+  ['c_country',     'Current country is required'],
+  ['c_company',     'Company is required'],
   ['c_designation', 'Designation is required'],
-  ['txnNumber', 'Transaction number is required'],
+  ['txnNumber',     'Transaction number is required'],
 ];
 
 const FILE_FIELDS = [
-  ['paymentScreenshot', 'Payment screenshot is required'],
-  ['proofOfAssociation', 'Proof of association is required'],
+  ['paymentScreenshot',  'Payment screenshot is required'],
+  ['proofOfAssociation', 'Proof of association document is required'],
 ];
 
 function validateAll() {
-  let ok = true;
+  let ok            = true;
+  let firstErrorEl  = null;   // track first broken field to scroll to it
 
+  const markError = (el, msg, errId) => {
+    setErr(errId || el?.id, msg);
+    if (!firstErrorEl && el) firstErrorEl = el;
+    ok = false;
+  };
+
+  /* position */
   const picked = document.querySelectorAll('input[name="positionsApplied"]:checked');
-  if (!picked.length) { setErr('positions', 'Select at least one position.'); ok = false; }
-  else clearErr('positions');
+  if (!picked.length) {
+    const posEl = el('err-positions');
+    markError(el('sec-positions'), 'Select at least one position.', 'positions');
+  } else {
+    clearErr('positions');
+  }
 
+  /* text / select fields */
   TEXT_FIELDS.forEach(([id, msg]) => {
     const inp = el(id);
     if (!inp) return;
-    const val = inp.value.trim();
-    if (!val) { setErr(id, msg); ok = false; return; }
-
-    if (id === 'c_email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
-      setErr(id, 'Enter a valid email.'); ok = false; return;
+    if (!(inp.value || '').trim()) {
+      markError(inp, msg, id);
+    } else {
+      clearErr(id);
     }
-    if (id === 'c_mobile' && !/^[6-9]\d{9}$/.test(val)) {
-      setErr(id, 'Enter a valid 10-digit mobile number.'); ok = false; return;
-    }
-    if (id === 'c_year') {
-      const y = parseInt(val, 10);
-      if (isNaN(y) || y < 1960 || y > 2100) {
-        setErr(id, 'Enter a valid year.'); ok = false; return;
-      }
-    }
-    clearErr(id);
   });
 
+  /* file fields */
   FILE_FIELDS.forEach(([id, msg]) => {
     const inp = el(id);
-    if (!inp || !inp.files || !inp.files[0]) { setErr(id, msg); ok = false; }
-    else clearErr(id);
+    if (!inp || !inp.files || !inp.files[0]) {
+      markError(el(`zone-${id}`) || inp, msg, id);
+    } else {
+      clearErr(id);
+    }
   });
 
-  if (!el('declarationAccepted').checked) {
-    setErr('declaration', 'You must accept the declaration.'); ok = false;
-  } else clearErr('declaration');
+  /* declaration */
+  const decl = el('declarationAccepted');
+  if (!decl || !decl.checked) {
+    markError(decl, 'You must accept the declaration.', 'declaration');
+  } else {
+    clearErr('declaration');
+  }
+
+  /* scroll to first error so user sees what's wrong */
+  if (firstErrorEl) {
+    firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
   return ok;
 }
 
-// ✅ UPDATED: Handle multiple positions and 4-digit logic
+/* ── buildFormData ─────────────────────────────────────────────────────────
+   IMPORTANT: This is a multipart/form-data request (because it includes files).
+   multer parses multipart fields as FLAT literal strings.
+   "candidateDetails[fullName]" becomes the literal key req.body["candidateDetails[fullName]"]
+   — NOT req.body.candidateDetails.fullName.
+   Only express.urlencoded (qs) does bracket→nested parsing, and only for non-file forms.
+   So we MUST use simple flat field names here.
+──────────────────────────────────────────────────────────────────────────── */
 function buildFormData() {
   const fd = new FormData();
-  const positions = Array.from(document.querySelectorAll('input[name="positionsApplied"]:checked')).map(c => c.value);
 
-  // Appending each selected position for the backend array
-  positions.forEach(pos => fd.append('positionsApplied', pos));
+  /* position — single string */
+  const picked = document.querySelector('input[name="positionsApplied"]:checked');
+  if (picked) fd.append('positionsApplied', picked.value);
 
-  document.querySelectorAll('[name]:not([name="positionsApplied"])').forEach(inp => {
-    if (inp.type === 'file') {
-      if (inp.files[0]) fd.append(inp.name, inp.files[0]);
-    } else if (inp.type === 'checkbox') {
-      fd.append(inp.name, inp.checked ? 'true' : 'false');
-    } else {
-      fd.append(inp.name, inp.value.trim());
-    }
-  });
+  /* candidate details — FLAT keys */
+  fd.append('fullName',         el('c_fullName').value.trim());
+  fd.append('rollNumber',       el('c_rollNumber').value.trim());
+  fd.append('yearOfPassingOut', el('c_year').value.trim());
+  fd.append('branch',           el('c_branch').value.trim());
+  fd.append('email',            el('c_email').value.trim());
+  fd.append('mobile',           el('c_mobile').value.trim());
+  fd.append('currentCity',      el('c_city').value.trim());
+  fd.append('currentCountry',   el('c_country').value.trim());
+  fd.append('company',          el('c_company').value.trim());
+  fd.append('designation',      el('c_designation').value.trim());
+
+  /* payment — FLAT key */
+  fd.append('transactionNumber', el('txnNumber').value.trim());
+
+  /* files */
+  const payFile   = el('paymentScreenshot').files[0];
+  const proofFile = el('proofOfAssociation').files[0];
+  if (payFile)   fd.append('paymentScreenshot',  payFile);
+  if (proofFile) fd.append('proofOfAssociation', proofFile);
+
+  /* declaration — string "true" */
+  fd.append('declarationAccepted', el('declarationAccepted').checked ? 'true' : 'false');
+
   return fd;
 }
 
-// 🔹 New: Handle the 4-digit OTP cells
-function initOTPCells() {
-  const cells = [el('d0'), el('d1'), el('d2'), el('d3')];
-  cells.forEach((cell, idx) => {
-    cell.addEventListener('input', (e) => {
-      if (e.target.value && idx < 3) cells[idx + 1].focus();
-    });
-    cell.addEventListener('keydown', (e) => {
-      if (e.key === 'Backspace' && !e.target.value && idx > 0) cells[idx - 1].focus();
-    });
-  });
-}
+/* ── form submit ──────────────────────────────────────────────────────────── */
+async function onFormSubmit(e){
+  if (e && e.preventDefault) e.preventDefault();
 
-// 🔹 Form Submission Logic
-async function onFormSubmit(e) {
-  e.preventDefault();
-  if (!validateAll()) return;
+  console.log('▶ onFormSubmit called');
+
+  if (!validateAll()) {
+    console.log('✖ Client validation failed — see red fields above');
+    return false;
+  }
 
   const btn = el('submitBtn');
   setLoading(btn, true);
 
   try {
+    console.log('📤 Sending to server…');
     const response = await fetch(`${API_BASE}/submit`, {
       method: 'POST',
-      body: buildFormData()
+      body:   buildFormData(),
+      // ⚠ Do NOT set Content-Type — the browser sets multipart/form-data with boundary
     });
 
     const result = await response.json();
+    console.log('📥 Server response:', result);
 
     if (result.success) {
       nominationId = result.nominationId;
-      openOTPModal();
+      console.log('✔ Success — opening OTP modal');
+
+      /* reset OTP cells */
+      ['d0', 'd1', 'd2', 'd3'].forEach(id => { const c = el(id); if (c) c.value = ''; });
+
+      /* hide any previous alert inside modal */
+      const alertEl = el('otpAlert');
+      if (alertEl) hide(alertEl);
+
+      /* show modal */
+      show(el('otpModal'));
+      document.body.style.overflow = 'hidden';
+      el('d0')?.focus();
+
+      startTimer();
+      toast('OTP sent! Check your email inbox.', 'ok');
+
     } else {
-      // Handle the specific eligibility error from backend
-      if (response.status === 400 || response.status === 403) {
-        el('eligibilityError').style.display = 'block';
+      /* show the server's error message prominently */
+      console.error('✖ Server rejected submission:', result);
+      toast(result.message || 'Submission failed. Please try again.', 'err');
+
+      /* if server returned field-level errors, show them too */
+      if (result.errors) {
+        Object.entries(result.errors).forEach(([field, msg]) => {
+          setErr(field, msg);
+        });
       }
-      toast(result.message || 'Submission failed', 'err');
     }
-  } catch (err) {
-    toast('Server error. Try again later.', 'err');
+
+  } catch (networkErr) {
+    console.error('🔥 Network error:', networkErr);
+    toast('Cannot reach server. Is the backend running on port 5000?', 'err');
   } finally {
     setLoading(btn, false);
   }
-}
 
-// 🔹 OTP Modal Handlers
-function openOTPModal() {
-  show(el('otpModal'));
-  document.body.style.overflow = 'hidden';
-  startTimer();
-}
+  return false;
+};
 
-function startTimer() {
-  timerRemaining = OTP_SEC;
-  timerInterval = setInterval(() => {
-    timerRemaining--;
-    const min = Math.floor(timerRemaining / 60);
-    const sec = timerRemaining % 60;
-    el('otpTimer').textContent = `${min}:${sec < 10 ? '0' : ''}${sec}`;
-    if (timerRemaining <= 0) clearInterval(timerInterval);
-  }, 1000);
-}
+/* ── OTP verify ───────────────────────────────────────────────────────────── */
+window.onVerifyOTP = async function () {
+  const code = ['d0', 'd1', 'd2', 'd3'].map(id => el(id)?.value || '').join('');
 
-// 🔹 OTP Verification Logic
-async function onVerifyOTP() {
-  const code = [el('d0'), el('d1'), el('d2'), el('d3')].map(i => i.value).join('');
-  if (code.length < 4) return toast('Enter 4-digit code', 'err');
+  if (code.length < 4) {
+    showOTPAlert('Please enter all 4 digits.');
+    return;
+  }
 
   const btn = el('verifyBtn');
   setLoading(btn, true);
 
   try {
-    const res = await fetch(`${API_BASE}/verify-otp`, {
-      method: 'POST',
+    const res  = await fetch(`${API_BASE}/verify-otp`, {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nominationId, otp: code })
+      body:    JSON.stringify({ nominationId, otp: code }),
     });
-
     const data = await res.json();
+
     if (data.success) {
+      clearInterval(timerInterval);
       hide(el('otpModal'));
-      el('successId').textContent = nominationId;
+      document.body.style.overflow = '';
+
+      const sid = el('successId');
+      if (sid) sid.textContent = nominationId;
       show(el('successOverlay'));
+
     } else {
-      toast(data.message, 'err');
+      showOTPAlert(data.message || 'Incorrect OTP. Please try again.');
     }
+
   } catch (err) {
-    toast('Verification failed', 'err');
+    showOTPAlert('Verification failed. Check your connection.');
   } finally {
     setLoading(btn, false);
   }
+};
+
+/* ── OTP resend ───────────────────────────────────────────────────────────── */
+window.onResendOTP = async function () {
+  if (!nominationId) return;
+  const btn = el('resendBtn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res  = await fetch(`${API_BASE}/resend-otp`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ nominationId }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      ['d0', 'd1', 'd2', 'd3'].forEach(id => { const c = el(id); if (c) c.value = ''; });
+      el('d0')?.focus();
+      hide(el('otpAlert'));
+      startTimer();
+      toast('New OTP sent! Check your email.', 'ok');
+    } else {
+      toast(data.message || 'Resend failed.', 'err');
+      if (btn) btn.disabled = false;
+    }
+
+  } catch (err) {
+    toast('Resend failed. Check your connection.', 'err');
+    if (btn) btn.disabled = false;
+  }
+};
+
+/* ── timer ────────────────────────────────────────────────────────────────── */
+function startTimer() {
+  timerRemaining = OTP_SEC;
+  clearInterval(timerInterval);
+
+  const resendBtn = el('resendBtn');
+  if (resendBtn) resendBtn.disabled = true;
+
+  timerInterval = setInterval(() => {
+    timerRemaining--;
+    const min  = Math.floor(timerRemaining / 60);
+    const sec  = timerRemaining % 60;
+    const disp = el('otpTimer');
+    if (disp) disp.textContent = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+
+    if (timerRemaining <= 0) {
+      clearInterval(timerInterval);
+      if (disp) disp.textContent = 'Expired';
+      if (resendBtn) resendBtn.disabled = false;
+    }
+  }, 1000);
 }
 
-// (REST OF FILE HANDLERS)
+function showOTPAlert(msg) {
+  const a = el('otpAlert');
+  if (!a) return;
+  a.textContent = msg;
+  show(a);
+}
 
+/* ── DOM ready ────────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
-  el('nominationForm').addEventListener('submit', onFormSubmit);
-  initUploadZone('paymentScreenshot');
-  initUploadZone('proofOfAssociation');
-  initOTPCells();
-  updateProgress();
+
+  /* ✅ ADD THIS BLOCK (IMPORTANT FIX) */
+  const form = el('submitBtn');
+  if (form) {
+    form.addEventListener('click', onFormSubmit);
+  }
+
+  /* upload zones */
+  ['paymentScreenshot', 'proofOfAssociation'].forEach(id => {
+    const zone  = el(`zone-${id}`);
+    const input = el(id);
+    const sel   = el(`sel-${id}`);
+    if (!zone || !input) return;
+
+    zone.onclick = (e) => {
+      if (e.target !== input) input.click();
+    };
+
+    input.onchange = () => {
+      if (input.files[0]) {
+        if (sel) sel.textContent = '✓ ' + input.files[0].name;
+        clearErr(id);
+      }
+    };
+  });
+
+  /* OTP cells */
+  const cells = ['d0', 'd1', 'd2', 'd3'].map(id => el(id));
+  cells.forEach((cell, idx) => {
+    if (!cell) return;
+
+    cell.oninput = () => {
+      cell.value = cell.value.replace(/\D/g, '').slice(0, 1);
+      if (cell.value && idx < 3) cells[idx + 1].focus();
+    };
+
+    cell.onkeydown = (e) => {
+      if (e.key === 'Backspace' && !cell.value && idx > 0) cells[idx - 1].focus();
+    };
+
+    cell.onpaste = (e) => {
+      e.preventDefault();
+      const pasted = (e.clipboardData || window.clipboardData)
+        .getData('text').replace(/\D/g, '').slice(0, 4);
+      [...pasted].forEach((ch, j) => { if (cells[j]) cells[j].value = ch; });
+      cells[Math.min(pasted.length, 3)]?.focus();
+    };
+  });
+
+  /* buttons */
+  const vBtn = el('verifyBtn');
+  if (vBtn) vBtn.onclick = window.onVerifyOTP;
+
+  const rBtn = el('resendBtn');
+  if (rBtn) rBtn.onclick = window.onResendOTP;
+
+  /* modal close */
+  const modal = el('otpModal');
+  if (modal) {
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        hide(modal);
+        document.body.style.overflow = '';
+        clearInterval(timerInterval);
+      }
+    };
+  }
+
+  console.log('✔ app.js loaded — ready');
 });

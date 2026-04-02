@@ -1,286 +1,202 @@
-const fs = require('fs');
+const fs         = require('fs');
 const Nomination = require('../models/nomination.model');
-const {
-  generateOTP,
-  hashOTP,
-  verifyOTP,
-  getOTPExpiry,
-  isOTPExpired
-} = require('../services/otp.service');
+const { generateOTP, hashOTP, verifyOTP, getOTPExpiry, isOTPExpired } = require('../services/otp.service');
+const { sendNominationOTP, sendNominationConfirmation, sendAdminNominationAlert } = require('../services/email.service');
 
-const {
-  sendOTPEmail,
-  sendConfirmationEmail
-} = require('../services/email.service');
+const cleanFiles = (files = {}) =>
+  Object.values(files).flat().forEach(f => fs.unlink(f.path, () => {}));
 
 
-/*
-Flow:
-User submits form                    ->
-Data stored with status = pending_otp ->
-OTP generated + hashed + saved        ->
-User enters OTP                      ->
-OTP verified                        ->
-Status changed to submitted           ->
-Confirmation email sent
-*/
-
-
-// Helper – clean up uploaded files if anything fails
-const deleteUploadedFiles = (files = {}) => {
-  Object.values(files).flat().forEach((f) => fs.unlink(f.path, () => {}));
-};
-
-
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/nomination/submit
+// ─────────────────────────────────────────────────────────────────────────────
 const submitNomination = async (req, res, next) => {
   try {
+    const b     = req.body;
     const files = req.files || {};
 
-    // 🔹 Required file checks
+    /* ── Required file checks ───────────────────────────────────────────────── */
     if (!files.paymentScreenshot?.[0])
       return res.status(400).json({ success: false, message: 'Payment screenshot is required.' });
 
-    if (!files.proofOfAssociation?.[0])
+    if (!files.candidateProof?.[0])
       return res.status(400).json({ success: false, message: 'Proof of association is required.' });
 
-    const body = req.body;
+    /* ── Positions ──────────────────────────────────────────────────────────── */
+    let positions = b.positions;
+    if (!positions)
+      return res.status(400).json({ success: false, message: 'At least one position is required.' });
+    if (typeof positions === 'string') positions = [positions];
+    positions = [...new Set(positions.map(p => p.trim()))];
 
-    // 🔥 FIX 1: Handle positions (Updated to handle Array from Frontend)
-    let positionsApplied = req.body.positionsApplied;
-
-    // Ensure positionsApplied is an array for the database
-    if (typeof positionsApplied === 'string') {
-        positionsApplied = [positionsApplied.trim()];
+    /* ── Candidate email ────────────────────────────────────────────────────── */
+    const candidateEmail = (b.candidateEmail || '').trim().toLowerCase();
+    if (!candidateEmail) {
+      cleanFiles(files);
+      return res.status(400).json({ success: false, message: 'Candidate email is required.' });
     }
 
-    // ❌ Validate at least one selection
-    if (!positionsApplied || !Array.isArray(positionsApplied) || positionsApplied.length === 0) {
-      deleteUploadedFiles(files);
-      return res.status(400).json({
-        success: false,
-        message: "Select at least one valid position"
-      });
-    }
-
-    // 🔥 FIX 2: Correct email extraction
-    const candidateEmail = body.email?.trim().toLowerCase();
-
-    // 🔥 FIX 3: Prevent duplicate per position
-    const existing = await Nomination.findOne({
-      'candidateDetails.email': candidateEmail,
-      status: 'submitted',
-      positionsApplied: { $in: positionsApplied } // Checks if any selected position was already applied for
+    /* ── Duplicate check ────────────────────────────────────────────────────── */
+    const exists = await Nomination.findOne({
+      'candidate.email': candidateEmail,
+      status: { $in: ['pending_admin', 'approved', 'rejected'] },
     });
-
-    if (existing) {
-      deleteUploadedFiles(files);
-      return res.status(409).json({
-        success: false,
-        message: "You have already applied for one of these positions."
-      });
+    if (exists) {
+      cleanFiles(files);
+      return res.status(409).json({ success: false, message: 'A nomination from this email already exists.' });
     }
 
-    // 🔹 Remove stale pending nominations (older than 30 mins)
+    /* ── Remove stale pending_otp (older than 30 min) ───────────────────────── */
     await Nomination.deleteOne({
-      'candidateDetails.email': candidateEmail,
+      'candidate.email': candidateEmail,
       status: 'pending_otp',
       createdAt: { $lt: new Date(Date.now() - 30 * 60 * 1000) },
     });
 
-    // 🔹 Generate & hash OTP
-    const otp = generateOTP();
+    /* ── Generate OTP ───────────────────────────────────────────────────────── */
+    const otp     = generateOTP();
     const otpHash = await hashOTP(otp);
 
-    // 🔹 Create nomination
+    /* ── Save nomination ────────────────────────────────────────────────────── */
     const nomination = await Nomination.create({
-      positionsApplied,
-      candidateDetails: {
-        fullName: body.fullName,
-        email: candidateEmail,
-        mobile: body.mobile,
-        // Adding missing fields for consistency with model
-        rollNumber: body.rollNumber,
-        yearOfPassingOut: body.yearOfPassingOut,
-        branch: body.branch,
-        currentCity: body.currentCity,
-        currentCountry: body.currentCountry,
-        company: body.company,
-        designation: body.designation
+      positions,
+      candidate: {
+        fullName:      (b.candidateFullName    || '').trim(),
+        rollNumber:    (b.candidateRollNumber  || '').trim(),
+        yearOfPassing: parseInt(b.candidateYear, 10) || undefined,
+        branch:        (b.candidateBranch      || '').trim(),
+        email:         candidateEmail,
+        mobile:        (b.candidateMobile      || '').trim(),
+        cityCountry:   (b.candidateCityCountry || '').trim(),
+        company:       (b.candidateCompany     || '').trim(),
+        designation:   (b.candidateDesignation || '').trim(),
       },
-      // Storing file paths for Admin verification
-      paymentDetails: {
-        transactionNumber: body.transactionNumber,
-        paymentScreenshotPath: files.paymentScreenshot[0].path
-      },
-      proofOfAssociationPath: files.proofOfAssociation[0].path,
-      declarationAccepted: body.declarationAccepted === 'true' || body.declarationAccepted === true,
-      status: 'pending_otp',
+      transactionNumber:     (b.transactionNumber || '').trim(),
+      paymentScreenshotPath: files.paymentScreenshot[0].path,
+      candidateProofPath:    files.candidateProof[0].path,
+      declarationAccepted:
+        b.declarationAccepted === 'true' || b.declarationAccepted === true,
       otpHash,
-      otpExpiry: getOTPExpiry(),
+      otpExpiry: getOTPExpiry(10),
+      status:    'pending_otp',
     });
 
-    console.log("--------------------------");
-    console.log(`OTP for ${candidateEmail} is: ${otp}`);
-    console.log("--------------------------");
+    console.log(`\n📋 Nomination ${nomination.nominationId} | ${candidateEmail} | OTP: ${otp}\n`);
 
-    // 🔹 Send OTP email
+    /* ── Send OTP email ─────────────────────────────────────────────────────── */
     try {
-      await sendOTPEmail({
-        to: candidateEmail,
-        candidateName: nomination.candidateDetails.fullName,
+      await sendNominationOTP({
+        to:           candidateEmail,
+        name:         nomination.candidate.fullName,
         otp,
         nominationId: nomination.nominationId,
       });
-    } catch (emailErr) {
-      console.error('OTP email failed:', emailErr.message);
+    } catch (e) {
+      console.error('OTP email failed:', e.message);
     }
 
-    res.status(201).json({
-      success: true,
-      message: `OTP sent to ${candidateEmail}. Please verify to complete your nomination.`,
+    return res.status(201).json({
+      success:      true,
+      message:      `OTP sent to ${candidateEmail}. Valid for 10 minutes.`,
       nominationId: nomination.nominationId,
     });
 
   } catch (err) {
-    deleteUploadedFiles(req.files);
+    cleanFiles(req.files);
     next(err);
   }
 };
 
 
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/nomination/verify-otp
-const verifyOTPAndConfirm = async (req, res, next) => {
+// ─────────────────────────────────────────────────────────────────────────────
+const verifyNominationOTP = async (req, res, next) => {
   try {
     const { nominationId, otp } = req.body;
 
-    const nomination = await Nomination
-      .findOne({ nominationId })
+    const nom = await Nomination.findOne({ nominationId })
       .select('+otpHash +otpExpiry +otpAttempts');
 
-    if (!nomination)
+    if (!nom)
       return res.status(404).json({ success: false, message: 'Nomination not found.' });
+    if (nom.status !== 'pending_otp')
+      return res.status(400).json({ success: false, message: 'Nomination already verified.' });
+    if (nom.otpAttempts >= 5)
+      return res.status(429).json({ success: false, message: 'Too many attempts. Please resubmit the form.' });
+    if (isOTPExpired(nom.otpExpiry))
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please resubmit.' });
 
-    if (nomination.status === 'submitted')
-      return res.status(400).json({ success: false, message: 'Nomination is already verified.' });
-
-    if (nomination.otpAttempts >= 5)
-      return res.status(429).json({ success: false, message: 'Too many incorrect attempts. Please resubmit your form.' });
-
-    if (isOTPExpired(nomination.otpExpiry))
-      return res.status(400).json({ success: false, message: 'OTP has expired. Please resubmit to get a new OTP.' });
-
-    const isValid = await verifyOTP(otp, nomination.otpHash);
-
-    if (!isValid) {
-      nomination.otpAttempts += 1;
-      await nomination.save();
-
-      const remaining = 5 - nomination.otpAttempts;
-
+    const valid = await verifyOTP(String(otp), nom.otpHash);
+    if (!valid) {
+      nom.otpAttempts += 1;
+      await nom.save();
       return res.status(400).json({
         success: false,
-        message: `Incorrect OTP. ${remaining} attempt(s) remaining.`,
+        message: `Incorrect OTP. ${5 - nom.otpAttempts} attempt(s) remaining.`,
       });
     }
 
-    // 🔹 Mark as submitted
-    nomination.isEmailVerified = true;
-    nomination.status = 'submitted';
-    nomination.submittedAt = new Date();
-    nomination.otpHash = undefined;
-    nomination.otpExpiry = undefined;
-    nomination.otpAttempts = undefined;
+    nom.status      = 'pending_admin';
+    nom.submittedAt = new Date();
+    nom.otpHash     = undefined;
+    nom.otpExpiry   = undefined;
+    nom.otpAttempts = 0;
+    await nom.save();
 
-    await nomination.save();
+    /* Non-blocking emails */
+    sendNominationConfirmation({
+      to:           nom.candidate.email,
+      name:         nom.candidate.fullName,
+      nominationId: nom.nominationId,
+      positions:    nom.positions,
+    }).catch(e => console.error('Confirmation email:', e.message));
 
-    // 🔹 Send confirmation email
-    sendConfirmationEmail({
-      to: nomination.candidateDetails.email,
-      candidateName: nomination.candidateDetails.fullName,
-      nominationId: nomination.nominationId,
-      positions: nomination.positionsApplied,
-    }).catch((e) => console.error('Confirmation email failed:', e.message));
+    sendAdminNominationAlert({
+      nominationId:  nom.nominationId,
+      candidateName: nom.candidate.fullName,
+      positions:     nom.positions,
+    }).catch(e => console.error('Admin alert:', e.message));
 
-    res.status(200).json({
-      success: true,
-      message: 'Nomination verified and submitted successfully!',
-      nominationId: nomination.nominationId,
+    return res.status(200).json({
+      success:      true,
+      message:      'Email verified! Your nomination is submitted and pending admin review.',
+      nominationId: nom.nominationId,
     });
 
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/nomination/resend-otp
-const resendOTP = async (req, res, next) => {
+// ─────────────────────────────────────────────────────────────────────────────
+const resendNominationOTP = async (req, res, next) => {
   try {
     const { nominationId } = req.body;
 
-    const nomination = await Nomination
-      .findOne({ nominationId, status: 'pending_otp' })
+    const nom = await Nomination.findOne({ nominationId, status: 'pending_otp' })
       .select('+otpHash +otpExpiry +otpAttempts');
 
-    if (!nomination)
+    if (!nom)
       return res.status(404).json({ success: false, message: 'Pending nomination not found.' });
 
-    const otp = generateOTP();
+    const otp         = generateOTP();
+    nom.otpHash       = await hashOTP(otp);
+    nom.otpExpiry     = getOTPExpiry(10);
+    nom.otpAttempts   = 0;
+    await nom.save();
 
-    nomination.otpHash = await hashOTP(otp);
-    nomination.otpExpiry = getOTPExpiry();
-    nomination.otpAttempts = 0;
-
-    await nomination.save();
-
-    await sendOTPEmail({
-      to: nomination.candidateDetails.email,
-      candidateName: nomination.candidateDetails.fullName,
+    await sendNominationOTP({
+      to:           nom.candidate.email,
+      name:         nom.candidate.fullName,
       otp,
-      nominationId: nomination.nominationId,
+      nominationId: nom.nominationId,
     });
 
-    res.status(200).json({
-      success: true,
-      message: 'New OTP sent to your email.'
-    });
-
-  } catch (err) {
-    next(err);
-  }
-};
-
-// 🔹 Admin: Get all submitted nominations for verification
-const getAllNominations = async (req, res, next) => {
-  try {
-    const nominations = await Nomination.find({ status: 'submitted' });
-    res.status(200).json({ success: true, data: nominations });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// 🔹 Admin: Manually verify candidate eligibility
-const verifyCandidateByAdmin = async (req, res, next) => {
-  try {
-    const { nominationId, isVerified } = req.body;
-    const nomination = await Nomination.findOneAndUpdate(
-      { nominationId },
-      { isAdminVerified: isVerified },
-      { new: true }
-    );
-    res.status(200).json({ success: true, message: `Candidate ${isVerified ? 'Approved' : 'Rejected'}` });
-  } catch (err) {
-    next(err);
-  }
+    return res.status(200).json({ success: true, message: 'New OTP sent.' });
+  } catch (err) { next(err); }
 };
 
 
-module.exports = {
-  submitNomination,
-  verifyOTPAndConfirm,
-  resendOTP,
-  getAllNominations,
-  verifyCandidateByAdmin
-};
+module.exports = { submitNomination, verifyNominationOTP, resendNominationOTP };

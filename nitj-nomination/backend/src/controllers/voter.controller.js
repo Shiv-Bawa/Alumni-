@@ -1,235 +1,299 @@
-const mongoose  = require('mongoose');
-const Voter     = require('../models/voter.model');
-const { Vote, VoteExecutiveMember } = require('../models/vote.model');
+const mongoose   = require('mongoose');
+const Voter      = require('../models/voter.model');
 const Nomination = require('../models/nomination.model');
+const { Vote, VoteExecMember } = require('../models/vote.model');
 const { generateOTP, hashOTP, verifyOTP, getOTPExpiry, isOTPExpired } = require('../services/otp.service');
-const { sendOTPEmail } = require('../services/email.service');
+const { sendVoterOTP } = require('../services/email.service');
 
-// 1. Register Voter & Request OTP
-const registerVoter = async (req, res) => {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/voter/register
+// Voter fills details + OTP sent to email
+// ─────────────────────────────────────────────────────────────────────────────
+const registerVoter = async (req, res, next) => {
   try {
-    const { fullName, rollNumber, email } = req.body;
-    const normalizedEmail = email.trim().toLowerCase();
+    const { fullName, rollNumber, yearOfPassing, branch, email, mobile, cityCountry, company, designation } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
-    let voter = await Voter.findOne({ 
-      email: normalizedEmail,
-      rollNumber: rollNumber.trim() 
-    });
-
-    if (!voter) {
-      return res.status(400).json({
-        success: false,
-        message: 'You have not registered with the NITJ Alumni Association with the used email ID. Please register at: https://www.nitjaa.com/signup',
-      });
+    if (!normalizedEmail) {
+      return res.status(400).json({ success: false, message: 'Email is required.' });
     }
 
-    if (voter.hasVoted) {
-      return res.status(400).json({ success: false, message: 'You have already cast your vote.' });
+    // Check if already voted — no point in re-registering
+    const existingVoter = await Voter.findOne({ email: normalizedEmail });
+    if (existingVoter?.hasVoted) {
+      return res.status(400).json({ success: false, message: 'You have already cast your vote in this election.' });
     }
 
+    // OTP rate limit: max 5 requests per hour
     const now = new Date();
-    const windowStart = voter.otpRequestWindowStart || new Date(0);
-    const windowElapsed = (now - windowStart) / 1000 / 60; 
-    
-    if (windowElapsed < 60 && voter.otpRequestCount >= 5) {
-      return res.status(429).json({
-        success: false,
-        message: 'Maximum OTP requests exceeded. Please try again after 1 hour.',
+    if (existingVoter) {
+      const windowStart  = existingVoter.otpRequestWindowStart || new Date(0);
+      const elapsedMin   = (now - windowStart) / 60000;
+      if (elapsedMin < 60 && (existingVoter.otpRequestCount || 0) >= 5) {
+        return res.status(429).json({ success: false, message: 'Too many OTP requests. Please try again after 1 hour.' });
+      }
+      if (elapsedMin >= 60) {
+        existingVoter.otpRequestCount        = 0;
+        existingVoter.otpRequestWindowStart   = now;
+      }
+    }
+
+    const otp    = generateOTP();
+    const hashed = await hashOTP(otp);
+    const expiry = getOTPExpiry(10);
+
+    let voter;
+    if (existingVoter) {
+      // Update existing record with latest details
+      Object.assign(existingVoter, {
+        fullName, rollNumber,
+        yearOfPassing: parseInt(yearOfPassing, 10),
+        branch, mobile, cityCountry, company, designation,
+      });
+      existingVoter.otpHash             = hashed;
+      existingVoter.otpExpiry           = expiry;
+      existingVoter.otpAttempts         = 0;
+      existingVoter.emailVerified       = false;
+      existingVoter.otpRequestCount     = (existingVoter.otpRequestCount || 0) + 1;
+      if (!existingVoter.otpRequestWindowStart) existingVoter.otpRequestWindowStart = now;
+      existingVoter.registrationIp      = req.ip;
+      voter = await existingVoter.save();
+    } else {
+      voter = await Voter.create({
+        fullName, rollNumber,
+        yearOfPassing: parseInt(yearOfPassing, 10),
+        branch, email: normalizedEmail, mobile, cityCountry, company, designation,
+        otpHash: hashed, otpExpiry: expiry,
+        otpRequestCount: 1, otpRequestWindowStart: now,
+        registrationIp: req.ip,
       });
     }
 
-    if (windowElapsed >= 60) {
-      voter.otpRequestCount = 0;
-      voter.otpRequestWindowStart = now;
+    console.log(`\n🗳️  Voter Register | ${normalizedEmail} | OTP: ${otp}\n`);
+    try {
+      await sendVoterOTP({ to: normalizedEmail, name: fullName, otp });
+    } catch (e) {
+      console.error('Voter OTP email failed:', e.message);
     }
-
-    const otp = generateOTP();
-    const hashed = await hashOTP(otp);
-    const expiry = getOTPExpiry(10); 
-
-    voter.otpHash = hashed;
-    voter.otpExpiry = expiry;
-    voter.otpAttempts = 0;
-    voter.emailVerified = false;
-    voter.otpRequestCount = (voter.otpRequestCount || 0) + 1;
-    voter.registrationIp = req.ip;
-
-    await voter.save();
-    console.log(`\n[DEV ONLY] OTP for ${normalizedEmail} is: ${otp}\n`);
-
-    await sendOTPEmail(normalizedEmail, voter.fullName, otp, 'voter');
 
     return res.status(200).json({
       success: true,
-      message: 'OTP sent to your registered email. Valid for 10 minutes.',
+      message: 'OTP sent to your email. Valid for 10 minutes.',
       voterId: voter._id,
     });
 
   } catch (err) {
-    console.error('registerVoter error:', err);
-    return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
+    if (err.code === 11000) {
+      return res.status(409).json({ success: false, message: 'This email is already registered as a voter.' });
+    }
+    next(err);
   }
 };
 
-// 2. Verify OTP
-const verifyVoterOTP = async (req, res) => {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/voter/verify-otp
+// Verifies OTP and marks emailVerified = true
+// ─────────────────────────────────────────────────────────────────────────────
+const verifyVoterOTP = async (req, res, next) => {
   try {
     const { voterId, otp } = req.body;
     const voter = await Voter.findById(voterId).select('+otpHash +otpExpiry +otpAttempts');
 
-    if (!voter) return res.status(404).json({ success: false, message: 'Voter not found.' });
-    if (voter.hasVoted) return res.status(400).json({ success: false, message: 'Already voted.' });
-
-    if (isOTPExpired(voter.otpExpiry)) {
-      return res.status(400).json({ success: false, message: 'OTP expired.' });
+    if (!voter)               return res.status(404).json({ success: false, message: 'Voter not found.' });
+    if (voter.hasVoted)       return res.status(400).json({ success: false, message: 'You have already cast your vote.' });
+    if (voter.otpAttempts >= 5) return res.status(429).json({ success: false, message: 'Too many attempts. Please register again.' });
+    if (!voter.otpHash || isOTPExpired(voter.otpExpiry)) {
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please register again.' });
     }
 
-    const valid = await verifyOTP(otp.toString(), voter.otpHash);
+    const valid = await verifyOTP(String(otp), voter.otpHash);
     if (!valid) {
       voter.otpAttempts += 1;
       await voter.save();
-      return res.status(400).json({ success: false, message: 'Invalid OTP.' });
+      return res.status(400).json({
+        success: false,
+        message: `Incorrect OTP. ${5 - voter.otpAttempts} attempt(s) remaining.`,
+      });
     }
 
     voter.emailVerified = true;
-    voter.otpHash = undefined;
-    voter.otpExpiry = undefined;
+    voter.otpHash       = undefined;
+    voter.otpExpiry     = undefined;
+    voter.otpAttempts   = 0;
     await voter.save();
 
-    return res.status(200).json({ success: true, message: 'Verified.', voterId: voter._id });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: 'Server error.' });
-  }
+    return res.status(200).json({
+      success:  true,
+      message:  'Email verified. Registration complete.',
+      voterId:  voter._id,
+    });
+
+  } catch (err) { next(err); }
 };
 
-// 3. Get Ballot
-const getBallotCandidates = async (req, res) => {
-  try {
-    const { voterId } = req.params;
-    const voter = await Voter.findById(voterId);
 
-    if (!voter || !voter.emailVerified || voter.hasVoted) {
-      return res.status(403).json({ success: false, message: 'Access denied.' });
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/voter/login
+// Voter enters email + roll number on voting page.
+// System checks if they are registered and verified in DB.
+// If details match → return voterId to access ballot.
+// ─────────────────────────────────────────────────────────────────────────────
+const loginVoter = async (req, res, next) => {
+  try {
+    const email      = (req.body.email      || '').trim().toLowerCase();
+    const rollNumber = (req.body.rollNumber || '').trim();
+
+    if (!email || !rollNumber) {
+      return res.status(400).json({ success: false, message: 'Email and roll number are required.' });
     }
 
-    const positions = ['President', 'General Secretary', 'Treasurer', 'Co-Treasurer', 'Executive Council Member'];
+    // Look up voter by email
+    const voter = await Voter.findOne({ email });
+
+    // Not registered at all
+    if (!voter) {
+      return res.status(404).json({
+        success:       false,
+        notRegistered: true,
+        message:       'You are not registered as a voter. Please complete voter registration first.',
+      });
+    }
+
+    // Registered but email not verified
+    if (!voter.emailVerified) {
+      return res.status(403).json({
+        success:       false,
+        notRegistered: true,
+        message:       'Your voter registration is not complete. Please verify your email first.',
+      });
+    }
+
+    // Already voted
+    if (voter.hasVoted) {
+      return res.status(400).json({
+        success:      false,
+        alreadyVoted: true,
+        message:      'You have already cast your vote in this election.',
+      });
+    }
+
+    // Roll number mismatch
+    if (voter.rollNumber.toLowerCase() !== rollNumber.toLowerCase()) {
+      return res.status(401).json({
+        success: false,
+        message: 'Roll number does not match our records. Please check and try again.',
+      });
+    }
+
+    // All checks passed
+    return res.status(200).json({
+      success:  true,
+      voterId:  voter._id,
+      fullName: voter.fullName,
+      message:  'Identity verified. You may now vote.',
+    });
+
+  } catch (err) { next(err); }
+};
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/voter/ballot/:voterId
+// Returns only admin-approved candidates, grouped by position
+// ─────────────────────────────────────────────────────────────────────────────
+const getBallot = async (req, res, next) => {
+  try {
+    const voter = await Voter.findById(req.params.voterId);
+    if (!voter)                return res.status(404).json({ success: false, message: 'Voter not found.' });
+    if (!voter.emailVerified)  return res.status(403).json({ success: false, message: 'Email not verified.' });
+    if (voter.hasVoted)        return res.status(400).json({ success: false, message: 'You have already voted.' });
 
     const candidates = await Nomination.find(
-      { status: 'submitted', isAdminVerified: true },
+      { status: 'approved' },
       {
-        nominationId: 1,
-        positionsApplied: 1,
-        'candidateDetails.fullName': 1,
-        'candidateDetails.branch': 1,
-        'candidateDetails.yearOfPassingOut': 1,
+        nominationId: 1, positions: 1,
+        'candidate.fullName': 1, 'candidate.branch': 1,
+        'candidate.yearOfPassing': 1, 'candidate.designation': 1, 'candidate.company': 1,
       }
     ).lean();
 
+    const POSITIONS = ['President', 'General Secretary', 'Treasurer', 'Co-Treasurer', 'Executive Council Member'];
     const ballot = {};
-    positions.forEach(pos => { ballot[pos] = []; });
+    POSITIONS.forEach(p => { ballot[p] = []; });
 
     candidates.forEach(c => {
-      const posArray = Array.isArray(c.positionsApplied) ? c.positionsApplied : [c.positionsApplied];
-      posArray.forEach(pos => {
+      (c.positions || []).forEach(pos => {
         if (ballot[pos]) {
           ballot[pos].push({
-            _id: c._id,
-            fullName: c.candidateDetails.fullName,
-            branch: c.candidateDetails.branch,
-            yearOfPassing: c.candidateDetails.yearOfPassingOut,
+            _id:           c._id,
+            nominationId:  c.nominationId,
+            fullName:      c.candidate.fullName,
+            branch:        c.candidate.branch,
+            yearOfPassing: c.candidate.yearOfPassing,
+            designation:   c.candidate.designation,
+            company:       c.candidate.company,
           });
         }
       });
     });
 
     return res.status(200).json({ success: true, ballot });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: 'Error loading ballot.' });
-  }
+
+  } catch (err) { next(err); }
 };
 
-// 4. Submit the Vote
-const submitVote = async (req, res) => {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/voter/submit-vote
+// Atomic transaction — creates vote + marks voter as hasVoted
+// ─────────────────────────────────────────────────────────────────────────────
+const submitVote = async (req, res, next) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
-    const { 
-      voterId, 
-      presidentCandidateId, 
-      generalSecretaryCandidateId, 
-      treasurerCandidateId, 
-      coTreasurerCandidateId, 
-      executiveMemberIds 
-    } = req.body;
+    const { voterId, presidentId, generalSecretaryId, treasurerId, coTreasurerId, execMemberIds } = req.body;
 
-    const voter = await Voter.findById(voterId);
-    if (!voter || voter.hasVoted) {
-      return res.status(400).json({ success: false, message: 'Voter ineligible or already voted.' });
+    if (!Array.isArray(execMemberIds)) {
+      await session.abortTransaction(); session.endSession();
+      return res.status(400).json({ success: false, message: 'execMemberIds must be an array.' });
     }
 
-    const vote = await Vote.create({
-        voterId,
-        presidentCandidateId: presidentCandidateId || null,
-        generalSecretaryCandidateId: generalSecretaryCandidateId || null,
-        treasurerCandidateId: treasurerCandidateId || null,
-        coTreasurerCandidateId: coTreasurerCandidateId || null,
-        submittedIp: req.ip,
-    });
+    const voter = await Voter.findById(voterId).session(session);
+    if (!voter)               { await session.abortTransaction(); session.endSession(); return res.status(404).json({ success: false, message: 'Voter not found.' }); }
+    if (!voter.emailVerified) { await session.abortTransaction(); session.endSession(); return res.status(403).json({ success: false, message: 'Email not verified.' }); }
+    if (voter.hasVoted)       { await session.abortTransaction(); session.endSession(); return res.status(400).json({ success: false, message: 'You have already voted.' }); }
 
-    if (executiveMemberIds && executiveMemberIds.length > 0) {
-      const execDocs = executiveMemberIds.map(cid => ({ voteId: vote._id, candidateId: cid }));
-      await VoteExecutiveMember.insertMany(execDocs);
+    const [vote] = await Vote.create(
+      [{ voterId, presidentId, generalSecretaryId, treasurerId, coTreasurerId, submittedIp: req.ip }],
+      { session }
+    );
+
+    if (execMemberIds.length > 0) {
+      await VoteExecMember.insertMany(
+        execMemberIds.map(cid => ({ voteId: vote._id, candidateId: cid })),
+        { session }
+      );
     }
 
-    const allIds = [
-      presidentCandidateId, 
-      generalSecretaryCandidateId, 
-      treasurerCandidateId, 
-      coTreasurerCandidateId, 
-      ...(executiveMemberIds || [])
-    ].filter(id => id && mongoose.Types.ObjectId.isValid(id));
-    
-    await Nomination.updateMany({ _id: { $in: allIds } }, { $inc: { votes: 1 } });
+    voter.hasVoted = true;
+    voter.votedAt  = new Date();
+    voter.votingIp = req.ip;
+    await voter.save({ session });
 
-    // 🔥 FIXED: Direct update to ensure MongoDB saves 'true' immediately
-    await Voter.findByIdAndUpdate(voterId, {
-      $set: {
-        hasVoted: true,
-        votedAt: new Date(),
-        votingIp: req.ip
-      }
-    });
+    await session.commitTransaction();
+    session.endSession();
 
-    console.log(`>>> Success: Voter ${voterId} marked as hasVoted: true in DB.`);
-
-    return res.status(200).json({ success: true, message: 'Your vote has been cast successfully!' });
+    return res.status(200).json({ success: true, message: 'Your vote has been cast successfully. Thank you for participating!' });
 
   } catch (err) {
-    console.error('Vote Submission Error:', err.message);
-    return res.status(500).json({ success: false, message: 'Server error during voting.' });
+    await session.abortTransaction();
+    session.endSession();
+    if (err.code === 11000) return res.status(400).json({ success: false, message: 'You have already voted.' });
+    next(err);
   }
 };
 
-// 5. Check Voter Status
-const getVoterStatus = async (req, res) => {
-  try {
-    const voter = await Voter.findById(req.params.voterId);
-    if (!voter) {
-      return res.status(404).json({ success: false, message: 'Voter not found.' });
-    }
-    return res.json({ 
-      success: true, 
-      emailVerified: voter.emailVerified, 
-      hasVoted: voter.hasVoted 
-    });
-  } catch (err) { 
-    console.error('getVoterStatus error:', err);
-    return res.status(500).json({ success: false, message: 'Server error.' }); 
-  }
-};
 
-module.exports = { 
-  registerVoter, 
-  verifyVoterOTP, 
-  getBallotCandidates, 
-  submitVote, 
-  getVoterStatus 
-};
+module.exports = { registerVoter, verifyVoterOTP, loginVoter, getBallot, submitVote };

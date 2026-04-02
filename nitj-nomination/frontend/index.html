@@ -50,11 +50,10 @@
   
   <main class="main">
     <form id="nominationForm" novalidate>
-
       
       <section class="card" id="sec-positions">
         <div class="card-label">Section 01</div>
-        <h2 class="card-title">Position Applied For</h2>
+        <h2 class="card-title">Position Applied For</h2>  
         <p class="card-desc">Select one or more positions. At least one is mandatory. </p>
 
         <div class="position-grid">
@@ -175,10 +174,10 @@
           </div>
 
           <div class="field-wrap">
-            <label class="field-label required" for="c_city">Current City</label>
-            <input class="field-input" id="c_city" name="candidateDetails.currentCity" type="text" placeholder="City" />
-            <div class="field-error" id="err-c_city"></div>
-          </div>
+  <label class="field-label required" for="c_city">Current City</label>
+  <input class="field-input" id="c_city" name="candidateDetails.currentCity" type="text" placeholder="City" />
+  <div class="field-error" id="err-c_city"></div>
+</div>
 
           <div class="field-wrap">
             <label class="field-label required" for="c_country">Current Country</label>
@@ -263,21 +262,20 @@
         <div class="field-error" id="err-declaration"></div>
       </section>
 
-      <div class="submit-wrap">
+     <div class="submit-wrap">
         <p class="submit-note">
           <span class="note-icon">🔒</span>
-          A 4-digit verification code will be sent to your email ID before final submission. [cite: 109]
+          A 4-digit verification code will be sent to your email ID before final submission.
         </p>
-        <button type="submit" class="btn-primary" id="submitBtn">
-          <span class="btn-label">Submit &amp; Get OTP</span>
-          <span class="btn-spin" style="display:none"></span>
-          <span class="btn-arrow">→</span>
-        </button>
+        <button type="button" class="btn-primary" id="submitBtn">
+  <span class="btn-label">Submit &amp; Get OTP</span>
+  <span class="btn-spin" style="display:none"></span>
+  <span class="btn-arrow">→</span>
+</button>
       </div>
 
-    </form>
+    </form> 
   </main>
-
   
 
   <div class="modal-bg" id="otpModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="modalTitle">

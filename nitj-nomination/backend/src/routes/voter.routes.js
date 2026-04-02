@@ -1,7 +1,6 @@
 const express = require('express');
 const router  = express.Router();
 
-// 1. You are already importing these specific functions here
 const {
   registerVoter,
   verifyVoterOTP,
@@ -28,8 +27,9 @@ router.use(apiLimiter);
 
 // --- VOTER ROUTES ---
 
-// Fixed: Removed "voterController." because the function is already imported above
-router.post('/register', registerVoter); 
+// 🔥 FIXED: Changed from .get to .post to match frontend fetch()
+// 🔥 ADDED: validateVoterRegistration to keep the data clean
+router.post('/register', otpSendLimiter, validateVoterRegistration, registerVoter); 
 
 router.post('/verify-otp', otpVerifyLimiter, validateVoterOTP, verifyVoterOTP);
 
