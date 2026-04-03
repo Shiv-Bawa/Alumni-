@@ -1,41 +1,24 @@
-// route se start karna hai
-
-
-
 const express = require('express');
 const router  = express.Router();
-
-const upload   = require('../config/multer');
-// 1. ADD the Admin functions to your import line here:
-const { 
-  submitNomination, 
-  verifyOTPAndConfirm, 
-  resendOTP, 
-  getAllNominations,      // <--- ADD THIS
-  verifyCandidateByAdmin  // <--- ADD THIS
-} = require('../controllers/nomination.controller');
-
-const { validateNomination, validateOTP } = require('../middleware/validation.middleware');
+const upload  = require('../config/multer');
+const { submitNomination, verifyNominationOTP, resendNominationOTP } = require('../controllers/nomination.controller');
 const { apiLimiter, otpSendLimiter, otpVerifyLimiter } = require('../middleware/rateLimit.middleware');
 
 router.use(apiLimiter);
 
+/* Only two file fields now — no proposer files */
 const uploadFields = upload.fields([
-  { name: 'paymentScreenshot',  maxCount: 1 },
-  { name: 'proofOfAssociation', maxCount: 1 },
+  { name: 'paymentScreenshot', maxCount: 1 },
+  { name: 'candidateProof',    maxCount: 1 },
 ]);
 
-// --- EXISTING ROUTES ---
-router.post('/submit', otpSendLimiter, uploadFields, validateNomination, submitNomination);
-router.post('/verify-otp', otpVerifyLimiter, validateOTP, verifyOTPAndConfirm);
-router.post('/resend-otp', otpSendLimiter, resendOTP);
+// POST /api/nomination/submit
+router.post('/submit',     otpSendLimiter,   uploadFields, submitNomination);
 
-// --- 2. ADD THESE ADMIN ROUTES AT THE BOTTOM ---
+// POST /api/nomination/verify-otp
+router.post('/verify-otp', otpVerifyLimiter, verifyNominationOTP);
 
-// GET /api/nomination/admin/all
-router.get('/admin/all', getAllNominations);
-
-// PATCH /api/nomination/admin/verify
-router.patch('/admin/verify', verifyCandidateByAdmin);
+// POST /api/nomination/resend-otp
+router.post('/resend-otp', otpSendLimiter,   resendNominationOTP);
 
 module.exports = router;

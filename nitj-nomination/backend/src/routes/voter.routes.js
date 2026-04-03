@@ -1,49 +1,23 @@
 const express = require('express');
 const router  = express.Router();
-
-const {
-  registerVoter,
-  verifyVoterOTP,
-  getBallotCandidates,
-  submitVote,
-  getVoterStatus,
-} = require('../controllers/voter.controller');
-
-const { 
-  getAllNominations, 
-  verifyCandidateByAdmin 
-} = require('../controllers/nomination.controller');
-
-const {
-  validateVoterRegistration,
-  validateVoterOTP,
-  validateVoteSubmission,
-} = require('../middleware/VoterValidation.middleware');
-
+const { registerVoter, verifyVoterOTP, loginVoter, getBallot, submitVote } = require('../controllers/voter.controller');
 const { apiLimiter, otpSendLimiter, otpVerifyLimiter } = require('../middleware/rateLimit.middleware');
 
-// Global rate limiter
 router.use(apiLimiter);
 
-// --- VOTER ROUTES ---
+// POST /api/voter/register   — fill details + send OTP to email
+router.post('/register',    otpSendLimiter,   registerVoter);
 
-// 🔥 FIXED: Changed from .get to .post to match frontend fetch()
-// 🔥 ADDED: validateVoterRegistration to keep the data clean
-router.post('/register', otpSendLimiter, validateVoterRegistration, registerVoter); 
+// POST /api/voter/verify-otp — verify OTP → emailVerified = true, saved to DB
+router.post('/verify-otp',  otpVerifyLimiter, verifyVoterOTP);
 
-router.post('/verify-otp', otpVerifyLimiter, validateVoterOTP, verifyVoterOTP);
+// POST /api/voter/login      — on voting page: enter email+rollNumber, verified against DB
+router.post('/login',       apiLimiter,       loginVoter);
 
-router.get('/ballot/:voterId', getBallotCandidates);
+// GET  /api/voter/ballot/:voterId — fetch approved candidates
+router.get('/ballot/:voterId', getBallot);
 
-router.post('/submit-vote', validateVoteSubmission, submitVote);
-
-router.get('/status/:voterId', getVoterStatus);
-
-
-// --- ADMIN ROUTES ---
-
-router.get('/admin/results', getAllNominations);
-
-router.post('/admin/verify-candidate', verifyCandidateByAdmin);
+// POST /api/voter/submit-vote — cast vote (atomic)
+router.post('/submit-vote', submitVote);
 
 module.exports = router;

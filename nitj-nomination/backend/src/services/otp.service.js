@@ -1,30 +1,19 @@
-const crypto  = require('crypto');
-const bcrypt  = require('bcryptjs');
+const bcrypt = require('bcryptjs');
 
-// it generate the otp
-const generateOTP = () => crypto.randomInt(1000, 9999).toString();
+/** Generate a random 4-digit OTP */
+const generateOTP = () =>
+  String(Math.floor(1000 + Math.random() * 9000));
 
+/** Hash an OTP with bcrypt */
+const hashOTP = (otp) => bcrypt.hash(otp, 10);
 
-// bycrpt before storing
-const hashOTP = async (otp) => {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(otp, salt);
-};
+/** Compare plain OTP with hash */
+const verifyOTP = (plain, hash) => bcrypt.compare(plain, hash);
 
-// verify 
-const verifyOTP = (plainOTP, hashedOTP) => bcrypt.compare(plainOTP, hashedOTP);
+/** Expiry date: now + minutes */
+const getOTPExpiry = (minutes = 10) => new Date(Date.now() + minutes * 60 * 1000);
 
-// expires the otp after 5 min
-const getOTPExpiry = (minutes = parseInt(process.env.OTP_EXPIRY_MINUTES) || 5) =>
-  new Date(Date.now() + minutes * 60 * 1000);
+/** Check if expiry has passed */
+const isOTPExpired = (expiry) => !expiry || new Date() > new Date(expiry);
 
-// check for expired otp
-const isOTPExpired = (expiry) => Date.now() > new Date(expiry).getTime();
-
-
-module.exports = { generateOTP, 
-  hashOTP, 
-  verifyOTP, 
-  getOTPExpiry, 
-  isOTPExpired 
-};
+module.exports = { generateOTP, hashOTP, verifyOTP, getOTPExpiry, isOTPExpired };
