@@ -1,65 +1,66 @@
 require('dotenv').config();
-const express     = require('express');
-const helmet      = require('helmet');
-const compression = require('compression');
-const morgan      = require('morgan');
-const cors        = require('cors');
+const express       = require('express');
+const helmet        = require('helmet');
+const compression   = require('compression');
+const morgan        = require('morgan');
+const cors          = require('cors');
 const mongoSanitize = require('express-mongo-sanitize');
-const path        = require('path');
+const path          = require('path');
 
-const connectDB   = require('./src/config/database');
-const nominationRoutes = require('./src/routes/nomination.routes');
-const voterRoutes = require('./src/routes/voter.routes');
-const { globalErrorHandler, notFound } = require('./src/middleware/error.middleware');
+const connectDB          = require('./src/config/database');
+const nominationRoutes   = require('./src/routes/nomination.routes');
+const voterRoutes        = require('./src/routes/voter.routes');
+const adminRoutes        = require('./src/routes/admin.routes');
+const { notFound, globalErrorHandler } = require('./src/middleware/error.middleware');
 
 const app = express();
-
-// 1. Connect to Database
 connectDB();
 
-// 2. CORS Configuration (Allowing Live Server and Localhost)
+// ── Security ──────────────────────────────────────────────────────────────────
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:5501', 'http://localhost:5501', 'http://127.0.0.1:5500'], 
-  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
-  credentials: true,
+  origin: (origin, cb) => {
+    // Allow requests from file://, Live Server (5500/5501), localhost
+    const allowed = [
+      'http://127.0.0.1:5500', 'http://127.0.0.1:5501',
+      'http://localhost:5500',  'http://localhost:5501',
+      'http://localhost:3000',
+    ];
+    if (!origin || allowed.includes(origin)) return cb(null, true);
+    cb(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: false,
 }));
 
-// 3. Security & Optimization
-// app.use(helmet()); // Keep commented if it causes issues with local images
 app.use(compression());
 app.use(mongoSanitize());
+if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
-if (process.env.NODE_ENV !== 'test') {
-  app.use(morgan('dev'));
-}
+// ── Body parsers ──────────────────────────────────────────────────────────────
+// Note: multer handles multipart/form-data for file routes.
+// These parsers handle JSON and URL-encoded (admin login, OTP verify, etc.)
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// 🔥 FIXED: Increased limits for Photo/PDF Uploads
-// The previous 10kb limit was causing the silent "Server Error"
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// 4. Static Files (For accessing uploaded candidate photos)
+// ── Static: serve uploaded files ──────────────────────────────────────────────
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// 5. API Routes
+// ── API routes ────────────────────────────────────────────────────────────────
 app.use('/api/nomination', nominationRoutes);
-app.use('/api/voter', voterRoutes);
+app.use('/api/voter',      voterRoutes);
+app.use('/api/admin',      adminRoutes);
 
-// 6. Health Check
-app.get('/api/health', (req, res) => res.json({ 
-  status: 'ok', 
-  message: 'Backend is live', 
-  time: new Date() 
-}));
+// ── Health check ──────────────────────────────────────────────────────────────
+app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
 
-// 7. Error Handling Middleware
+// ── Error handling ────────────────────────────────────────────────────────────
 app.use(notFound);
 app.use(globalErrorHandler);
 
-// 8. Server Startup
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`\n🚀 Backend running  →  http://localhost:${PORT}`);
-  console.log(`📡 Env              →  ${process.env.NODE_ENV || 'development'}`);
-  console.log(`📂 Uploads Path     →  ${path.join(__dirname, 'uploads')}\n`);
+  console.log(`\n🚀 NITJAA Backend  →  http://localhost:${PORT}`);
+  console.log(`📁 Uploads         →  ${path.join(__dirname, 'uploads')}`);
+  console.log(`🌍 Env             →  ${process.env.NODE_ENV || 'development'}\n`);
 });

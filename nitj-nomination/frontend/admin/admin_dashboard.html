@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NITJAA — Admin Dashboard</title>
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+
+<!-- ── Sidebar ──────────────────────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-logo">NITJ</div>
+    <div class="brand-text">Admin</div>
+  </div>
+  <nav class="sidebar-nav">
+    <a class="nav-item active" data-tab="overview">
+      <span class="nav-icon">📊</span> Overview
+    </a>
+    <a class="nav-item" data-tab="nominations">
+      <span class="nav-icon">📋</span> Nominations
+    </a>
+    <a class="nav-item" data-tab="results">
+      <span class="nav-icon">🏆</span> Election Results
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="admin-name" id="adminName"></div>
+    <button class="btn-logout" onclick="doLogout()">⏏ Logout</button>
+  </div>
+</aside>
+
+<!-- ── Main content ──────────────────────────────────────────────────────────── -->
+<main class="main-area">
+
+  <header class="topbar">
+    <h1 class="topbar-title" id="topbarTitle">Overview</h1>
+    <span class="topbar-badge">NITJAA Election Panel</span>
+  </header>
+
+  <!-- ── Tab: Overview ──────────────────────────────────────────────────────── -->
+  <section class="tab-panel active" id="tab-overview">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-val" id="s-totalNom">—</div>
+        <div class="stat-lbl">Total Nominations</div>
+      </div>
+      <div class="stat-card warn">
+        <div class="stat-val" id="s-pending">—</div>
+        <div class="stat-lbl">Pending Review</div>
+      </div>
+      <div class="stat-card ok">
+        <div class="stat-val" id="s-approved">—</div>
+        <div class="stat-lbl">Approved</div>
+      </div>
+      <div class="stat-card danger">
+        <div class="stat-val" id="s-rejected">—</div>
+        <div class="stat-lbl">Rejected</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-val" id="s-voters">—</div>
+        <div class="stat-lbl">Registered Voters</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-val" id="s-votes">—</div>
+        <div class="stat-lbl">Votes Cast</div>
+      </div>
+    </div>
+
+    <div class="section-hdr">
+      <h2>Pending Nominations</h2>
+      <button class="btn-sm btn-outline" onclick="switchTab('nominations')">View All</button>
+    </div>
+    <div id="overviewPending"></div>
+  </section>
+
+  <!-- ── Tab: Nominations ───────────────────────────────────────────────────── -->
+  <section class="tab-panel" id="tab-nominations">
+    <div class="toolbar">
+      <div class="filter-row">
+        <label>Filter by status:</label>
+        <select id="nomFilter" onchange="loadNominations()">
+          <option value="">All Submitted</option>
+          <option value="pending_admin">Pending Review</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <button class="btn-sm btn-outline" onclick="loadNominations()">🔄 Refresh</button>
+    </div>
+    <div id="nominationsList"></div>
+  </section>
+
+  <!-- ── Tab: Results ───────────────────────────────────────────────────────── -->
+  <section class="tab-panel" id="tab-results">
+    <div class="section-hdr">
+      <h2>Election Results</h2>
+      <button class="btn-sm btn-outline" onclick="loadResults()">🔄 Refresh</button>
+    </div>
+    <div id="resultsContainer"></div>
+  </section>
+
+</main>
+
+<!-- ── Nomination Detail Modal ──────────────────────────────────────────────── -->
+<div class="modal-bg" id="nomModal" style="display:none">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h2 id="modalTitle" style="margin-bottom:20px;font-size:1.1rem;font-weight:800"></h2>
+    <div id="modalBody"></div>
+    <div id="modalActions" class="modal-actions"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="admin.js"></script>
+</body>
+</html>
