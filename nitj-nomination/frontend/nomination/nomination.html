@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NITJAA — Nomination Form</title>
+  <link rel="stylesheet" href="nomination.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="header-brand">
+      <div class="brand-logo">NITJ</div>
+      <div>
+        <div class="brand-name">NIT Jalandhar Alumni Association</div>
+        <div class="brand-sub">Alumni Affairs Cell · Election Cell</div>
+      </div>
+    </div>
+    <span class="header-badge">Nominations Open</span>
+  </div>
+</header>
+
+<div class="hero">
+  <h1 class="hero-title">NITJAA Executive Committee<br>Nomination Form</h1>
+  <p class="hero-sub">Fill in all details carefully. A 4-digit OTP will be sent to your email for verification.</p>
+  <div class="stepper">
+    <div class="step active" id="step1"><span class="step-n">1</span><span class="step-lbl">Fill Form</span></div>
+    <div class="step-line"></div>
+    <div class="step" id="step2"><span class="step-n">2</span><span class="step-lbl">Verify OTP</span></div>
+    <div class="step-line"></div>
+    <div class="step" id="step3"><span class="step-n">3</span><span class="step-lbl">Confirmed</span></div>
+  </div>
+</div>
+
+<main class="main">
+  <form id="nomForm" novalidate>
+
+    <!-- ── Section 1: Positions ────────────────────────────────────────────── -->
+    <section class="card" id="sec-positions">
+      <div class="sec-label">Section 01</div>
+      <h2 class="sec-title">Position Applied For</h2>
+      <p class="sec-desc">A candidate may apply for one or more positions.</p>
+      <div class="position-grid">
+        <label class="pos-card"><input type="checkbox" name="positions" value="President"><div class="pos-inner"><div class="pos-icon">🏛️</div><div class="pos-name">President</div><div class="pos-tick">✓</div></div></label>
+        <label class="pos-card"><input type="checkbox" name="positions" value="General Secretary"><div class="pos-inner"><div class="pos-icon">📋</div><div class="pos-name">General Secretary</div><div class="pos-tick">✓</div></div></label>
+        <label class="pos-card"><input type="checkbox" name="positions" value="Joint Secretary"><div class="pos-inner"><div class="pos-icon">🤝</div><div class="pos-name">Joint Secretary</div><div class="pos-tick">✓</div></div></label>
+        <label class="pos-card"><input type="checkbox" name="positions" value="Treasurer"><div class="pos-inner"><div class="pos-icon">💰</div><div class="pos-name">Treasurer</div><div class="pos-tick">✓</div></div></label>
+        <label class="pos-card"><input type="checkbox" name="positions" value="Co-Treasurer"><div class="pos-inner"><div class="pos-icon">📊</div><div class="pos-name">Co-Treasurer</div><div class="pos-tick">✓</div></div></label>
+        <label class="pos-card"><input type="checkbox" name="positions" value="Executive Council Member"><div class="pos-inner"><div class="pos-icon">⭐</div><div class="pos-name">Executive Council Member <small>(8 seats)</small></div><div class="pos-tick">✓</div></div></label>
+      </div>
+      <div class="err-msg" id="err-positions"></div>
+    </section>
+
+    <!-- ── Section 2: Candidate Details ──────────────────────────────────────── -->
+    <section class="card">
+      <div class="sec-label">Section 02</div>
+      <h2 class="sec-title">Candidate Details</h2>
+      <div class="form-grid">
+        <div class="field span2"><label class="req">Full Name</label><input id="candidateFullName" type="text" placeholder="As per degree certificate" /><div class="err-msg" id="err-candidateFullName"></div></div>
+        <div class="field"><label class="req">Roll Number</label><input id="candidateRollNumber" type="text" placeholder="e.g. 2K18/EC/001" /><div class="err-msg" id="err-candidateRollNumber"></div></div>
+        <div class="field"><label class="req">Year of Passing Out</label><input id="candidateYear" type="number" min="1960" max="2100" placeholder="e.g. 2018" /><div class="err-msg" id="err-candidateYear"></div></div>
+        <div class="field span2"><label class="req">Branch / Department</label>
+          <select id="candidateBranch">
+            <option value="">— Select Branch —</option>
+            <option>Computer Science &amp; Engineering</option>
+            <option>Electronics &amp; Communication Engineering</option>
+            <option>Electrical Engineering</option><option>Mechanical Engineering</option>
+            <option>Civil Engineering</option><option>Chemical Engineering</option>
+            <option>Industrial &amp; Production Engineering</option><option>Information Technology</option>
+            <option>Textile Technology</option><option>Biotechnology</option>
+            <option>Physics</option><option>Chemistry</option><option>Mathematics</option><option>Other</option>
+          </select>
+          <div class="err-msg" id="err-candidateBranch"></div>
+        </div>
+        <div class="field"><label class="req">Email ID</label><input id="candidateEmail" type="email" placeholder="your@email.com" /><div class="hint">OTP will be sent here</div><div class="err-msg" id="err-candidateEmail"></div></div>
+        <div class="field"><label class="req">Mobile Number</label><input id="candidateMobile" type="tel" placeholder="10-digit number" maxlength="10" /><div class="err-msg" id="err-candidateMobile"></div></div>
+        <div class="field span2"><label class="req">Current City &amp; Country</label><input id="candidateCityCountry" type="text" placeholder="e.g. Bengaluru, India" /><div class="err-msg" id="err-candidateCityCountry"></div></div>
+        <div class="field"><label class="req">Company / Business / Occupation</label><input id="candidateCompany" type="text" placeholder="Organisation name" /><div class="err-msg" id="err-candidateCompany"></div></div>
+        <div class="field"><label class="req">Designation / Nature of Work</label><input id="candidateDesignation" type="text" placeholder="e.g. Software Engineer" /><div class="err-msg" id="err-candidateDesignation"></div></div>
+      </div>
+    </section>
+
+    <!-- ── Section 3: Payment ─────────────────────────────────────────────────── -->
+    <section class="card">
+      <div class="sec-label">Section 03</div>
+      <h2 class="sec-title">Payment of Election Fee</h2>
+      <p class="sec-desc">Pay the non-refundable election fee of <strong>₹5,000/-</strong> at <a href="https://v1.nitj.ac.in/alumni_fundraising/login" target="_blank">nitj.ac.in/alumni_fundraising</a></p>
+      <div class="form-grid">
+        <div class="field span2"><label class="req">Transaction Number / UTR</label><input id="transactionNumber" type="text" placeholder="e.g. UTR123456789012" /><div class="err-msg" id="err-transactionNumber"></div></div>
+        <div class="field span2">
+          <label class="req">Payment Screenshot</label>
+          <div class="upload-zone" id="zone-paymentScreenshot">
+            <input type="file" id="paymentScreenshot" accept=".jpg,.jpeg,.png,.pdf" class="upload-input" />
+            <div class="upload-label"><span class="upload-icon">📎</span><div>Click or drag to upload</div><small>JPG · PNG · PDF · Max 5MB</small></div>
+            <div class="upload-sel" id="sel-paymentScreenshot"></div>
+          </div>
+          <div class="err-msg" id="err-paymentScreenshot"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section 4: Candidate Proof ─────────────────────────────────────────── -->
+    <section class="card">
+      <div class="sec-label">Section 04</div>
+      <h2 class="sec-title">Candidate — Proof of Association with NITJ</h2>
+      <p class="sec-desc">Upload any one: Degree Certificate, Final Semester DMC, or Email from faculty.</p>
+      <div class="upload-zone" id="zone-candidateProof">
+        <input type="file" id="candidateProof" accept=".jpg,.jpeg,.png,.pdf" class="upload-input" />
+        <div class="upload-label"><span class="upload-icon">🎓</span><div>Click or drag to upload</div><small>JPG · PNG · PDF · Max 5MB</small></div>
+        <div class="upload-sel" id="sel-candidateProof"></div>
+      </div>
+      <div class="err-msg" id="err-candidateProof"></div>
+    </section>
+
+    <!-- ── Section 5: Declaration ─────────────────────────────────────────────── -->
+    <section class="card">
+      <div class="sec-label">Section 05</div>
+      <h2 class="sec-title">Declaration</h2>
+      <blockquote class="declaration">
+        I hereby nominate myself for the selected position(s) in the Executive Committee of NITJAA.
+        I confirm that I am a bonafide alumnus of NIT Jalandhar, and I agree to abide by the rules and regulations
+        of the NITJAA Constitution and Election Guidelines.
+      </blockquote>
+      <label class="checkbox-row">
+        <input type="checkbox" id="declarationAccepted" />
+        <span>I have read and accept the above declaration</span>
+      </label>
+      <div class="err-msg" id="err-declaration"></div>
+    </section>
+
+  
+    <div class="submit-wrap">
+      <p class="submit-note">🔒 A 4-digit OTP will be sent to the candidate's email to verify this nomination.</p>
+      <button type="button" id="submitBtn" class="btn-primary" onclick="submitNomination()">
+        <span class="btn-label">Submit &amp; Get OTP</span>
+        <span class="btn-spin" style="display:none">⏳ Submitting…</span>
+      </button>
+    </div>
+
+  </form>
+</main>
+
+<!-- ── OTP Modal ────────────────────────────────────────────────────────────── -->
+<div class="modal-bg" id="otpModal" style="display:none">
+  <div class="modal-card">
+    <div class="modal-icon">📬</div>
+    <h2 class="modal-title">Verify Your Email</h2>
+    <p class="modal-desc">Enter the 4-digit code sent to<br><strong id="otpEmailDisplay"></strong></p>
+    <div class="otp-row">
+      <input class="otp-cell" id="d0" type="text" inputmode="numeric" maxlength="1" autocomplete="off" />
+      <input class="otp-cell" id="d1" type="text" inputmode="numeric" maxlength="1" autocomplete="off" />
+      <input class="otp-cell" id="d2" type="text" inputmode="numeric" maxlength="1" autocomplete="off" />
+      <input class="otp-cell" id="d3" type="text" inputmode="numeric" maxlength="1" autocomplete="off" />
+    </div>
+    <div class="otp-timer-row">Expires in <span id="otpTimer" class="otp-timer">10:00</span></div>
+    <div class="otp-alert" id="otpAlert" style="display:none"></div>
+    <button class="btn-primary" id="verifyBtn" onclick="verifyOTP()">
+      <span class="btn-label">Verify &amp; Submit Nomination</span>
+      <span class="btn-spin" style="display:none">⏳ Verifying…</span>
+    </button>
+    <button class="btn-ghost" id="resendBtn" disabled onclick="resendOTP()">Resend OTP</button>
+  </div>
+</div>
+
+<!-- ── Success Overlay ──────────────────────────────────────────────────────── -->
+<div class="success-overlay" id="successOverlay" style="display:none">
+  <div class="success-card">
+    <div class="success-icon">✅</div>
+    <h2>Nomination Submitted!</h2>
+    <p>Your nomination is now pending admin review. You will be notified once approved.</p>
+    <div class="nom-id-box">Nomination ID: <strong id="successNomId"></strong></div>
+    <p class="success-note">A confirmation email has been sent to your registered address.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer class="site-footer">
+  <p>© 2024 NIT Jalandhar Alumni Association &nbsp;|&nbsp; National Institute of Technology, Jalandhar — 144011</p>
+</footer>
+
+<script src="nomination.js"></script>
+</body>
+</html>
