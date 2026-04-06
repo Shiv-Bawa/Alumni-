@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NITJAA — Voter Registration</title>
+  <link rel="stylesheet" href="voter_register.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="header-brand">
+      <div class="brand-logo">NITJ</div>
+      <div>
+        <div class="brand-name">NIT Jalandhar Alumni Association</div>
+        <div class="brand-sub">Alumni Election — Voter Registration</div>
+      </div>
+    </div>
+    <a href="voter_vote.html" class="header-link">Already registered? Vote here →</a>
+  </div>
+</header>
+
+<!-- Stepper -->
+<div class="stepper-bar">
+  <div class="step-item active" id="stp1"><div class="stp-n">1</div><div class="stp-lbl">Your Details</div></div>
+  <div class="stp-line"></div>
+  <div class="step-item" id="stp2"><div class="stp-n">2</div><div class="stp-lbl">Verify Email</div></div>
+  <div class="stp-line"></div>
+  <div class="step-item" id="stp3"><div class="stp-n">3</div><div class="stp-lbl">Registered!</div></div>
+</div>
+
+<!-- Panel 1: Registration Form -->
+<div class="panel active" id="panel-form">
+  <div class="card">
+    <div class="card-hdr">
+      <h2>Voter Registration</h2>
+      <p>Enter your details exactly as registered with NITJAA. A 4-digit code will be sent to your email to verify your identity.</p>
+    </div>
+
+    <div class="alert err" id="formAlert" style="display:none"></div>
+
+    <p class="sec-lbl">Personal Information</p>
+    <div class="form-grid">
+      <div class="field span2">
+        <label class="req">Full Name</label>
+        <input id="fullName" type="text" placeholder="As per NITJ records" />
+        <div class="err-msg" id="err-fullName"></div>
+      </div>
+      <div class="field">
+        <label class="req">Roll Number</label>
+        <input id="rollNumber" type="text" placeholder="e.g. 2K18/EC/001" />
+        <div class="err-msg" id="err-rollNumber"></div>
+      </div>
+      <div class="field">
+        <label class="req">Year of Passing Out</label>
+        <input id="yearOfPassing" type="number" min="1960" max="2100" placeholder="e.g. 2018" />
+        <div class="err-msg" id="err-yearOfPassing"></div>
+      </div>
+      <div class="field span2">
+        <label class="req">Branch / Department</label>
+        <select id="branch">
+          <option value="">— Select Branch —</option>
+          <option>Computer Science &amp; Engineering</option>
+          <option>Electronics &amp; Communication Engineering</option>
+          <option>Electrical Engineering</option><option>Mechanical Engineering</option>
+          <option>Civil Engineering</option><option>Chemical Engineering</option>
+          <option>Industrial &amp; Production Engineering</option><option>Information Technology</option>
+          <option>Textile Technology</option><option>Biotechnology</option>
+          <option>Physics</option><option>Chemistry</option><option>Mathematics</option><option>Other</option>
+        </select>
+        <div class="err-msg" id="err-branch"></div>
+      </div>
+      <div class="field">
+        <label class="req">Email ID</label>
+        <input id="email" type="email" placeholder="Your registered alumni email" />
+        <div class="hint">A 4-digit OTP will be sent here</div>
+        <div class="err-msg" id="err-email"></div>
+      </div>
+      <div class="field">
+        <label class="req">Mobile Number</label>
+        <input id="mobile" type="tel" placeholder="10-digit number" maxlength="10" />
+        <div class="err-msg" id="err-mobile"></div>
+      </div>
+    </div>
+
+    <p class="sec-lbl" style="margin-top:20px">Professional Information</p>
+    <div class="form-grid">
+      <div class="field span2">
+        <label class="req">Current City &amp; Country</label>
+        <input id="cityCountry" type="text" placeholder="e.g. Bengaluru, India" />
+        <div class="err-msg" id="err-cityCountry"></div>
+      </div>
+      <div class="field">
+        <label class="req">Company / Business / Occupation</label>
+        <input id="company" type="text" placeholder="Organisation name" />
+        <div class="err-msg" id="err-company"></div>
+      </div>
+      <div class="field">
+        <label class="req">Designation / Nature of Work</label>
+        <input id="designation" type="text" placeholder="e.g. Software Engineer" />
+        <div class="err-msg" id="err-designation"></div>
+      </div>
+    </div>
+
+    <button type="button" class="btn-primary btn-block" id="registerBtn" onclick="registerVoter()">
+      <span class="btn-label">Register &amp; Send Verification Code</span>
+      <span class="btn-spin" style="display:none">⏳ Please wait…</span>
+    </button>
+  </div>
+</div>
+
+<!-- Panel 2: OTP Verification -->
+<div class="panel" id="panel-otp">
+  <div class="card otp-card">
+    <div class="otp-icon">📬</div>
+    <h2 class="otp-title">Verify Your Email</h2>
+    <p class="otp-desc">Enter the 4-digit code sent to<br><strong id="otpEmailShow"></strong></p>
+    <div class="otp-row">
+      <input class="otp-cell" id="v0" type="text" inputmode="numeric" maxlength="1" autocomplete="off" />
+      <input class="otp-cell" id="v1" type="text" inputmode="numeric" maxlength="1" autocomplete="off" />
+      <input class="otp-cell" id="v2" type="text" inputmode="numeric" maxlength="1" autocomplete="off" />
+      <input class="otp-cell" id="v3" type="text" inputmode="numeric" maxlength="1" autocomplete="off" />
+    </div>
+    <div class="otp-alert" id="otpAlert" style="display:none"></div>
+    <div class="otp-timer-row">Code expires in <span class="otp-timer" id="otpTimer">10:00</span></div>
+    <button class="btn-primary btn-block" id="verifyBtn" onclick="verifyOTP()">
+      <span class="btn-label">Verify &amp; Complete Registration</span>
+      <span class="btn-spin" style="display:none">⏳ Verifying…</span>
+    </button>
+    <button class="btn-ghost btn-block" id="resendBtn" style="margin-top:12px" disabled onclick="resendOTP()">Resend Code</button>
+  </div>
+</div>
+
+<!-- Panel 3: Success -->
+<div class="panel" id="panel-done">
+  <div class="card done-card">
+    <div class="done-icon">✅</div>
+    <h2>Registration Complete!</h2>
+    <p>You are now registered as a voter for the NITJAA Election.</p>
+    <div class="done-info">
+      <p>Your email: <strong id="doneEmail"></strong></p>
+      <p>To cast your vote, go to the voting page and enter your registered email and roll number.</p>
+    </div>
+    <a href="voter_vote.html" class="btn-primary" style="margin-top:20px;display:inline-flex;text-decoration:none">
+      Go to Voting Page →
+    </a>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer class="site-footer">
+  <p>© 2024 NIT Jalandhar Alumni Association &nbsp;|&nbsp; NIT Jalandhar — 144011, Punjab, India</p>
+</footer>
+
+<script src="voter_register.js"></script>
+</body>
+</html>
