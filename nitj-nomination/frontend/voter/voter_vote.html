@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NITJAA — Cast Your Vote</title>
+  <link rel="stylesheet" href="voter_vote.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="header-brand">
+      <div class="brand-logo">NITJ</div>
+      <div>
+        <div class="brand-name">NIT Jalandhar Alumni Association</div>
+        <div class="brand-sub">Alumni Election — Voting Portal</div>
+      </div>
+    </div>
+    <a href="voter_register.html" class="header-link" target="_blank">Not registered yet? Register here →</a>
+  </div>
+</header>
+
+<!-- Stepper -->
+<div class="stepper-bar">
+  <div class="step-item active" id="stp1"><div class="stp-n">1</div><div class="stp-lbl">Verify Identity</div></div>
+  <div class="stp-line"></div>
+  <div class="step-item" id="stp2"><div class="stp-n">2</div><div class="stp-lbl">Cast Vote</div></div>
+  <div class="stp-line"></div>
+  <div class="step-item" id="stp3"><div class="stp-n">3</div><div class="stp-lbl">Done</div></div>
+</div>
+
+<!-- Panel 1: Identity Verification -->
+<div class="panel active" id="panel-login">
+  <div class="card login-card">
+    <div class="login-icon">🔐</div>
+    <h2 class="login-title">Voter Verification</h2>
+    <p class="login-desc">Enter the email and roll number you used during registration. Your details will be matched against the registered voter database.</p>
+
+    <div class="alert err" id="loginAlert" style="display:none"></div>
+
+    <!-- Not-registered message -->
+    <div class="not-registered-box" id="notRegisteredBox" style="display:none">
+      <div style="font-size:2.5rem;margin-bottom:12px">🚫</div>
+      <div id="notRegisteredMsg"></div>
+      <a href="voter_register.html" class="btn-primary" style="margin-top:16px;display:inline-flex;text-decoration:none">
+        Register First →
+      </a>
+    </div>
+
+    <!-- Already voted message -->
+    <div class="already-voted-box" id="alreadyVotedBox" style="display:none">
+      <div style="font-size:2.5rem;margin-bottom:12px">✅</div>
+      <p>You have already cast your vote in this election.</p>
+      <p style="font-size:.85rem;color:#666;margin-top:8px">Each registered voter can vote only once.</p>
+    </div>
+
+    <div id="loginForm">
+      <div class="field">
+        <label class="req">Registered Email ID</label>
+        <input id="loginEmail" type="email" placeholder="Email you used during registration" autocomplete="email" />
+        <div class="err-msg" id="err-loginEmail"></div>
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label class="req">Roll Number</label>
+        <input id="loginRollNumber" type="text" placeholder="e.g. 2K18/EC/001" />
+        <div class="err-msg" id="err-loginRollNumber"></div>
+      </div>
+      <button type="button" class="btn-primary btn-block" id="loginBtn" style="margin-top:20px" onclick="verifyVoter()">
+        <span class="btn-label">Verify &amp; Access Ballot</span>
+        <span class="btn-spin" style="display:none">⏳ Verifying…</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Panel 2: Voting Ballot -->
+<div class="panel" id="panel-ballot">
+  <div class="ballot-header">
+    <h2>Online Voting Ballot</h2>
+    <p>Welcome, <strong id="voterNameDisplay"></strong>. Select candidates for each position carefully.</p>
+    <div class="ballot-note">
+      ⚠️ You can vote <strong>only once</strong>. Review your selections before submitting.<br>
+      Single positions: Select <strong>1 candidate</strong> each &nbsp;|&nbsp; Executive Council: Select <strong>up to 8</strong>
+    </div>
+  </div>
+  <div id="ballotContainer"></div>
+  <div class="ballot-alert" id="ballotAlert" style="display:none">
+    <div id="ballotAlertMsg"></div>
+  </div>
+  <div class="submit-ballot-wrap">
+    <button class="btn-primary" id="castVoteBtn" onclick="castVote()" disabled>
+      <span class="btn-label">🗳️ Submit My Vote</span>
+      <span class="btn-spin" style="display:none">⏳ Submitting…</span>
+    </button>
+  </div>
+</div>
+
+<!-- Panel 3: Done -->
+<div class="panel" id="panel-done">
+  <div class="card done-card">
+    <div class="done-icon">✅</div>
+    <h2>Vote Submitted Successfully!</h2>
+    <p>Your vote has been securely recorded by the NITJAA Election Committee.</p>
+    <p class="done-note">Results will be declared as per the official election schedule.<br><strong>NIT Jalandhar Alumni Association</strong></p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer class="site-footer">
+  <p>© 2024 NIT Jalandhar Alumni Association &nbsp;|&nbsp; NIT Jalandhar — 144011, Punjab, India</p>
+</footer>
+
+<script src="voter_vote.js"></script>
+</body>
+</html>
