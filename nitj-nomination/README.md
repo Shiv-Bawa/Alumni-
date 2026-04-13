@@ -60,15 +60,76 @@ The NITJAA Election Portal digitalises the entire alumni election process. Candi
 
 ---
 
+## Project Structure
 
+```
+nitjaa-election-portal/
+│
+├── backend/
+│   ├── server.js
+│   ├── package.json
+│   ├── .env.example
+│   ├── uploads/                        ← auto-created, stores uploaded files
+│   └── src/
+│       ├── config/
+│       │   ├── database.js
+│       │   └── multer.js
+│       ├── models/
+│       │   ├── nomination.model.js     ← candidate nominations
+│       │   ├── voter.model.js          ← registered voters
+│       │   ├── vote.model.js           ← cast votes (atomic)
+│       │   └── admin.model.js          ← admin credentials
+│       ├── controllers/
+│       │   ├── nomination.controller.js
+│       │   ├── voter.controller.js
+│       │   └── admin.controller.js
+│       ├── routes/
+│       │   ├── nomination.routes.js
+│       │   ├── voter.routes.js
+│       │   └── admin.routes.js
+│       ├── middleware/
+│       │   ├── auth.middleware.js      ← JWT guard for admin routes
+│       │   ├── error.middleware.js
+│       │   └── rateLimit.middleware.js
+│       ├── services/
+│       │   ├── otp.service.js          ← OTP generation + bcrypt hashing
+│       │   └── email.service.js        ← Nodemailer email templates
+│       └── utils/
+│           └── seedAdmin.js            ← creates first admin account
+│
+└── frontend/
+    ├── nomination/
+    │   ├── nomination.html             ← candidate nomination form
+    │   ├── nomination.js
+    │   └── nomination.css
+    ├── voter/
+    │   ├── voter_register.html         ← voter registration + OTP
+    │   ├── voter_register.js
+    │   ├── voter_register.css
+    │   ├── voter_vote.html             ← identity check + voting ballot
+    │   ├── voter_vote.js
+    │   └── voter_vote.css
+    └── admin/
+        ├── admin_login.html
+        ├── admin_dashboard.html        ← nominations, review, results
+        ├── admin.js
+        └── admin.css
+```
 
-
-
-
+---
 
 
 
 ## 🚀 Setup
+
+### Prerequisites
+
+- **Node.js** v18 or higher
+- **MongoDB** (local installation or [MongoDB Atlas](https://www.mongodb.com/atlas))
+- **Gmail account** with an App Password enabled
+- **VS Code** with the [Live Server](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer) extension (for frontend)
+
+---
 
 ### 1. Backend
 
@@ -90,25 +151,72 @@ npm run dev               # starts on http://localhost:5000
 
 > **Gmail App Password:** Enable 2-Step Verification → Google Account → Security → App Passwords → Generate one for "Mail".
 
-### 2. Frontend
-
-The frontend is **pure static files** — just open in a browser or serve with any static server:
+### 2. Configure Environment Variables
 
 ```bash
-cd frontend
-
-# Option A: VS Code Live Server (recommended for dev)
-# Option B: simple static server
-npx serve .               # serves on http://localhost:3000
-
-# Option C: open index.html directly in browser
-# (CORS will block API calls — use a server)
+cp .env.example .env
 ```
 
-Make sure `API_BASE` in `app.js` points to your backend URL (default: `http://localhost:5000/api/nomination`).
+Open `.env` and fill in your values:
+
+```env
+PORT=5000
+NODE_ENV=development
+FRONTEND_URL=http://127.0.0.1:5500
+
+MONGO_URI=mongodb://localhost:27017/nitjaa_election
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_gmail@gmail.com
+SMTP_PASS=your_16_char_app_password
+
+ADMIN_JWT_SECRET=paste_a_long_random_string_here
+
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=YourSecurePassword123
+```
+
+**Generate a JWT secret:**
+```bash
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
+
+**Get a Gmail App Password:**
+1. Go to [Google Account](https://myaccount.google.com) → Security → 2-Step Verification → Enable it
+2. Search "App passwords" → Generate one for "Mail"
+3. Use that 16-character password as `SMTP_PASS` — **not** your regular Gmail password
+
+### 3. Create the Admin Account
+
+```bash
+npm run seed:admin
+```
+
+This creates an admin account using the `ADMIN_USERNAME` and `ADMIN_PASSWORD` from your `.env` file. Run this only once.
+
+### 4. Start the Backend
+
+```bash
+npm run dev        # development (auto-restart on changes)
+npm start          # production
+```
+
+Backend runs at: `http://localhost:5000`
+
+### 5. Open the Frontend
+
+Open any HTML file using **VS Code Live Server** (right-click the file → *Open with Live Server*):
+
+| Page | File |
+|---|---|
+| Nomination Form | `frontend/nomination/nomination.html` |
+| Voter Registration | `frontend/voter/voter_register.html` |
+| Voting Page | `frontend/voter/voter_vote.html` |
+| Admin Login | `frontend/admin/admin_login.html` |
+| Admin Dashboard | `frontend/admin/admin_dashboard.html` |
 
 ---
-
 
 ## 🔐 Security Features
 
