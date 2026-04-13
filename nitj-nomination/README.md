@@ -1,9 +1,15 @@
 # 🎓 NITJ Alumni Election – Nomination System
 
-Nomination-only system for NIT Jalandhar Alumni Election.  
-**No voting. No proposer. Just the nomination form + OTP email verification.**
+A full-stack online election management system for the **NIT Jalandhar Alumni Association (NITJAA)**. Built to handle the complete election lifecycle — from candidate nominations to secure voting and result declaration.
 
 ---
+
+## Overview
+
+The NITJAA Election Portal digitalises the entire alumni election process. Candidates can submit their nominations online, the admin reviews and approves them, registered alumni voters receive OTP-verified access to cast their votes, and results are securely visible only to the admin.
+
+---
+
 
 ## 📁 Folder Structure
 
