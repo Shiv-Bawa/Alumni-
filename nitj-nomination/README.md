@@ -11,6 +11,36 @@ The NITJAA Election Portal digitalises the entire alumni election process. Candi
 ---
 
 
+
+## Features
+
+### Nomination Module
+- Candidates can apply for one or more positions in a single form
+- OTP-based email verification (4-digit, 10-minute expiry) before submission
+- File uploads: payment screenshot (₹5,000 election fee) and proof of NITJ association
+- Declaration acceptance required before submission
+- Nomination goes to admin for review after email verification
+
+### Admin Dashboard
+- Secure login with JWT-protected session (8-hour expiry)
+- View all submitted nominations with full candidate details
+- Approve or reject nominations with optional remarks
+- Only approved candidates appear on the voter ballot
+- View complete election results (admin-only, never exposed to voters)
+- Dashboard summary: total nominations, pending/approved/rejected counts, votes cast
+
+
+### Voter Registration
+
+
+### Voting Platform
+
+---
+
+## Tech Stack
+
+---
+
 ## 📁 Folder Structure
 
 ```
