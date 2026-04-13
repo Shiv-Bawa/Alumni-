@@ -31,51 +31,42 @@ The NITJAA Election Portal digitalises the entire alumni election process. Candi
 
 
 ### Voter Registration
-
+- Separate registration page where voters fill in their details
+- 4-digit OTP sent to email for verification
+- On successful OTP verification, voter record is saved to the database
 
 ### Voting Platform
+- Separate voting page — voter enters their registered email and roll number
+- System matches details against the registered voter database
+- If not registered → redirected to registration page
+- If already voted → blocked with a clear message
+- Ballot shows only admin-approved candidates grouped by position
+- Positions: President, General Secretary, Treasurer, Co-Treasurer (select 1 each), Executive Council Member (select up to 8)
+- One vote per voter — enforced at both application and database level using MongoDB atomic transactions
 
 ---
 
 ## Tech Stack
 
----
-
-## 📁 Folder Structure
-
-```
-nitj-nomination/
-│
-├── backend/                         ← Node.js + Express + MongoDB
-│   ├── server.js                    ← Entry point
-│   ├── package.json
-│   ├── .env.example                 ← Copy to .env and fill in
-│   ├── uploads/                     ← Uploaded files (auto-created)
-│   └── src/
-│       ├── config/
-│       │   ├── database.js          ← MongoDB connection
-│       │   └── multer.js            ← File upload (5MB, PDF/JPG/PNG)
-│       ├── controllers/
-│       │   └── nomination.controller.js  ← submit / verify-otp / resend-otp
-│       ├── middleware/
-│       │   ├── error.middleware.js
-│       │   ├── rateLimit.middleware.js
-│       │   └── validation.middleware.js
-│       ├── models/
-│       │   └── nomination.model.js  ← Mongoose schema
-│       ├── routes/
-│       │   └── nomination.routes.js
-│       └── services/
-│           ├── email.service.js     ← Nodemailer (OTP + confirmation)
-│           └── otp.service.js       ← Generate / hash / verify OTP
-│
-└── frontend/                        ← Plain HTML + CSS + JS (no framework)
-    ├── index.html                   ← Nomination form
-    ├── style.css                    ← NITJ maroon theme
-    └── app.js                       ← Form logic + OTP flow
-```
+| Layer | Technology |
+|---|---|
+| Backend | Node.js, Express.js |
+| Database | MongoDB, Mongoose |
+| Authentication | JWT (admin), OTP via email (candidates & voters) |
+| Email | Nodemailer with Gmail SMTP |
+| File Uploads | Multer |
+| Frontend | Plain HTML, CSS, Vanilla JavaScript |
+| Security | bcrypt, helmet, express-mongo-sanitize, express-rate-limit |
 
 ---
+
+
+
+
+
+
+
+
 
 ## 🚀 Setup
 
@@ -118,16 +109,6 @@ Make sure `API_BASE` in `app.js` points to your backend URL (default: `http://lo
 
 ---
 
-## 📡 API Endpoints
-
-| Method | Route | Description |
-|---|---|---|
-| `POST` | `/api/nomination/submit` | Submit form + files → sends OTP |
-| `POST` | `/api/nomination/verify-otp` | Verify OTP → confirm nomination |
-| `POST` | `/api/nomination/resend-otp` | Resend OTP |
-| `GET`  | `/api/health` | Health check |
-
----
 
 ## 🔐 Security Features
 
@@ -168,21 +149,4 @@ Nomination {
   submittedAt
   createdAt / updatedAt
 }
-```
-
----
-
-## 📧 Flow
-
-```
-1. Candidate fills form (5 sections, 2 file uploads)
-2. Clicks "Submit & Get OTP"
-3. Backend validates all fields + files
-4. Saves nomination as pending_otp
-5. Sends OTP email (bcrypt-hashed OTP stored)
-6. Candidate enters OTP in modal
-7. Backend verifies hash + checks expiry
-8. Status → submitted, OTP fields cleared
-9. Confirmation email sent
-10. Success overlay shown with Nomination ID
 ```
