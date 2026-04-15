@@ -218,18 +218,129 @@ Open any HTML file using **VS Code Live Server** (right-click the file → *Open
 
 ---
 
-## 🔐 Security Features
+## How It Works
 
-- **OTP hashed** with bcrypt before storing — never stored in plain text
-- **OTP expires** in 5 minutes (server-enforced)
-- **Max 5 wrong OTP attempts** before lockout
-- **Rate limiting**: 3 OTP sends/10 min, 5 verify attempts/10 min
-- **Duplicate prevention**: unique index on email for confirmed nominations
-- **File validation**: MIME type + extension checked server-side
-- **NoSQL injection protection**: `express-mongo-sanitize`
-- **Security headers**: `helmet`
-- **Input sanitization**: `express-validator` on all fields
-- **CORS**: only frontend origin allowed
+### Nomination Flow
+
+```
+Candidate fills form
+       ↓
+OTP sent to candidate email (4 digits, 10 min)
+       ↓
+Candidate verifies OTP
+       ↓
+Nomination saved as "pending_admin"
+       ↓
+Admin logs in → reviews nomination
+       ↓
+Admin approves or rejects
+       ↓
+Approved candidates appear on the voting ballot
+```
+
+### Voter Flow
+
+```
+Voter goes to voter_register.html
+       ↓
+Fills personal + professional details
+       ↓
+OTP sent to registered email
+       ↓
+Voter verifies OTP → saved to database as "registered"
+       ↓
+Voter goes to voter_vote.html
+       ↓
+Enters registered email + roll number
+       ↓
+System matches against database
+       ↓        ↓           ↓
+Not found  Already voted  Match found
+    ↓            ↓              ↓
+Register     Blocked        Ballot opens
+  first      (message)   (approved candidates)
+                               ↓
+                        Voter submits selections
+                               ↓
+                    Vote recorded (atomic transaction)
+                    Voter marked as "has voted"
+```
+
+---
+
+## API Reference
+
+### Nomination Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/nomination/submit` | Submit nomination form (multipart/form-data) |
+| `POST` | `/api/nomination/verify-otp` | Verify nomination OTP |
+| `POST` | `/api/nomination/resend-otp` | Resend nomination OTP |
+
+### Voter Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/voter/register` | Register voter + send OTP |
+| `POST` | `/api/voter/verify-otp` | Verify OTP → save to database |
+| `POST` | `/api/voter/login` | Verify identity on voting page (email + roll number) |
+| `GET`  | `/api/voter/ballot/:voterId` | Fetch approved candidates grouped by position |
+| `POST` | `/api/voter/submit-vote` | Cast vote (atomic transaction) |
+
+### Admin Endpoints (JWT protected)
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/admin/login` | Public | Admin login, returns JWT |
+| `GET`  | `/api/admin/dashboard` | ✅ | Stats summary |
+| `GET`  | `/api/admin/nominations` | ✅ | List nominations (filter by status) |
+| `POST` | `/api/admin/nominations/:id/review` | ✅ | Approve or reject a nomination |
+| `GET`  | `/api/admin/results` | ✅ | Election results (admin-only) |
+
+---
+
+## Security
+
+- **OTP** — 4-digit codes hashed with bcrypt before storing, 10-minute expiry, max 5 attempts before lockout
+- **Rate limiting** — OTP send: 3 requests per 10 min per IP/email; API: 100 requests per 15 min
+- **Passwords** — bcrypt with 12 salt rounds
+- **Admin JWT** — 8-hour expiry, role-checked on every protected route
+- **One vote per person** — unique index on `voterId` in the votes collection; vote + `hasVoted` flag written in a single MongoDB atomic transaction
+- **CORS** — restricted to known frontend origins only
+- **MongoDB injection** — sanitised with `express-mongo-sanitize`
+- **Security headers** — `helmet` applied to all responses
+- **File validation** — only JPG, PNG, PDF accepted; max 5 MB per file
+
+---
+
+## Positions on the Ballot
+
+| Position | Selection |
+|---|---|
+| President | Pick 1 |
+| General Secretary | Pick 1 |
+| Treasurer | Pick 1 |
+| Co-Treasurer | Pick 1 |
+| Executive Council Member | Pick up to 8 |
+
+---
+
+## Environment Variables Reference
+
+| Variable | Description |
+|---|---|
+| `PORT` | Backend server port (default: 5000) |
+| `NODE_ENV` | `development` or `production` |
+| `FRONTEND_URL` | Frontend origin for CORS |
+| `MONGO_URI` | MongoDB connection string |
+| `SMTP_HOST` | Email SMTP host (e.g. smtp.gmail.com) |
+| `SMTP_PORT` | SMTP port (587 for TLS) |
+| `SMTP_USER` | Gmail address |
+| `SMTP_PASS` | Gmail App Password (16 characters) |
+| `ADMIN_JWT_SECRET` | Long random string for signing admin JWTs |
+| `ADMIN_USERNAME` | Admin account username (used by seed script) |
+| `ADMIN_PASSWORD` | Admin account password (used by seed script) |
 
 ---
 
