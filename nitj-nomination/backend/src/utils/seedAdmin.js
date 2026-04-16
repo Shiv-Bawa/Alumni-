@@ -14,13 +14,17 @@ const Admin    = require('../models/admin.model');
   const username = process.env.ADMIN_USERNAME || 'admin';
   const password = process.env.ADMIN_PASSWORD || 'Admin@NITJ2024';
 
-  const exists = await Admin.findOne({ username });
-  if (exists) {
-    console.log(`⚠️  Admin "${username}" already exists.`);
-    process.exit(0);
-  }
+  await Admin.deleteOne({ username });
+console.log("Old admin deleted (if existed)");
 
-  const admin = new Admin({ username, passwordHash: password });
+  const bcrypt = require('bcrypt');
+
+const hashedPassword = await bcrypt.hash(password, 10);
+
+const admin = new Admin({ 
+  username, 
+  passwordHash: hashedPassword 
+});
   await admin.save();
   console.log(`✅ Admin created  →  username: "${username}"`);
   console.log('   Change the password after first login!\n');
