@@ -344,6 +344,7 @@ Register     Blocked        Ballot opens
 
 ---
 
+
 ## 🗄️ MongoDB Schema (Summary)
 
 ```
@@ -369,3 +370,15 @@ Nomination {
   createdAt / updatedAt
 }
 ```
+
+## Contributing
+
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+
+---
+
+## License
+
+This project is developed for the **NIT Jalandhar Alumni Association**. All rights reserved.
+
+---
