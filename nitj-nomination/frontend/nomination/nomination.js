@@ -5,9 +5,12 @@ let nominationId  = null;
 let timerInterval = null;
 
 /* ── Helpers ─────────────────────────────────────────────────────────────────── */
-const el   = id => document.getElementById(id);
-const show = e  => { if (e) e.style.display = ''; };
-const hide = e  => { if (e) e.style.display = 'none'; };
+const el = id => document.getElementById(id);
+
+/* IMPORTANT: Use explicit display values — never rely on '' which depends on CSS */
+const show      = e => { if (e) e.style.display = 'flex';   }; // for modal-bg (flex layout)
+const showBlock = e => { if (e) e.style.display = 'block';  }; // for overlays, alerts
+const hide      = e => { if (e) e.style.display = 'none';   };
 
 function toast(msg, type = '') {
   const t = el('toast');
@@ -15,7 +18,7 @@ function toast(msg, type = '') {
   t.textContent = msg;
   t.className   = `toast show${type ? ' ' + type : ''}`;
   clearTimeout(t._t);
-  t._t = setTimeout(() => t.classList.remove('show'), 4500);
+  t._t = setTimeout(() => t.classList.remove('show'), 5000);
 }
 
 function setLoading(btn, on) {
@@ -23,7 +26,7 @@ function setLoading(btn, on) {
   btn.disabled = on;
   const lbl  = btn.querySelector('.btn-label');
   const spin = btn.querySelector('.btn-spin');
-  if (lbl)  lbl.style.display  = on ? 'none' : '';
+  if (lbl)  lbl.style.display = on ? 'none' : '';
   if (spin) spin.style.display = on ? '' : 'none';
 }
 
@@ -39,10 +42,10 @@ function showOTPAlert(msg) {
   const a = el('otpAlert');
   if (!a) return;
   a.textContent = msg;
-  show(a);
+  a.style.display = 'block';
 }
 
-/* ── Validation (NO proposer fields) ────────────────────────────────────────── */
+/* ── Validation ──────────────────────────────────────────────────────────────── */
 function validate() {
   let ok       = true;
   let firstErr = null;
@@ -53,7 +56,7 @@ function validate() {
     ok = false;
   }
 
-  /* 1. At least one position selected */
+  /* 1. At least one position */
   const positions = [...document.querySelectorAll('input[name="positions"]:checked')];
   if (!positions.length) {
     const posErr = el('err-positions');
@@ -65,7 +68,7 @@ function validate() {
     if (posErr) posErr.textContent = '';
   }
 
-  /* 2. Candidate text fields */
+  /* 2. Candidate text / select fields */
   [
     ['candidateFullName',    'Full name is required'],
     ['candidateRollNumber',  'Roll number is required'],
@@ -83,13 +86,13 @@ function validate() {
   });
 
   /* 3. Email format */
-  const cEmail = el('candidateEmail')?.value?.trim();
+  const cEmail = (el('candidateEmail')?.value || '').trim();
   if (cEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cEmail)) {
     fail('candidateEmail', 'Enter a valid email address.');
   }
 
   /* 4. Mobile format */
-  const cMobile = el('candidateMobile')?.value?.trim();
+  const cMobile = (el('candidateMobile')?.value || '').trim();
   if (cMobile && !/^[6-9]\d{9}$/.test(cMobile)) {
     fail('candidateMobile', 'Enter a valid 10-digit Indian mobile number.');
   }
@@ -113,16 +116,20 @@ function validate() {
   return ok;
 }
 
-/* ── Build FormData (NO proposer fields) ─────────────────────────────────────── */
+/* ── Build FormData ───────────────────────────────────────────────────────────── */
+/*
+  multer parses multipart/form-data fields as FLAT literal strings.
+  Always use simple flat names here — never bracket notation.
+*/
 function buildFormData() {
   const fd = new FormData();
 
-  /* Positions — one or multiple */
+  /* Positions — append each checked position */
   document.querySelectorAll('input[name="positions"]:checked').forEach(cb => {
     fd.append('positions', cb.value);
   });
 
-  /* Candidate details — flat keys (multer requires flat for multipart) */
+  /* Candidate details — flat keys */
   fd.append('candidateFullName',    el('candidateFullName').value.trim());
   fd.append('candidateRollNumber',  el('candidateRollNumber').value.trim());
   fd.append('candidateYear',        el('candidateYear').value.trim());
@@ -140,8 +147,10 @@ function buildFormData() {
   fd.append('declarationAccepted', el('declarationAccepted').checked ? 'true' : 'false');
 
   /* Files */
-  fd.append('paymentScreenshot', el('paymentScreenshot').files[0]);
-  fd.append('candidateProof',    el('candidateProof').files[0]);
+  const payFile   = el('paymentScreenshot')?.files[0];
+  const proofFile = el('candidateProof')?.files[0];
+  if (payFile)   fd.append('paymentScreenshot', payFile);
+  if (proofFile) fd.append('candidateProof',    proofFile);
 
   return fd;
 }
@@ -159,26 +168,77 @@ window.submitNomination = async function () {
   setLoading(btn, true);
 
   try {
-    const res    = await fetch(`${API}/submit`, { method: 'POST', body: buildFormData() });
-    const result = await res.json();
+    console.log('📤 Sending to server...');
+
+    const res = await fetch(`${API}/submit`, {
+      method: 'POST',
+      body:   buildFormData(),
+      /* Do NOT set Content-Type — browser sets multipart/form-data with boundary automatically */
+    });
+
+    console.log('📥 HTTP status:', res.status);
+
+    let result;
+    try {
+      result = await res.json();
+    } catch (parseErr) {
+      console.error('Could not parse server response:', parseErr);
+      toast('Server error. Please try again.', 'bad');
+      return;
+    }
+
     console.log('📥 Server response:', result);
 
     if (result.success) {
       nominationId = result.nominationId;
-      el('otpEmailDisplay').textContent = el('candidateEmail').value.trim();
+      console.log('✔ Nomination created:', nominationId);
+
+      /* Update email display in modal */
+      const emailDisp = el('otpEmailDisplay');
+      if (emailDisp) emailDisp.textContent = el('candidateEmail').value.trim();
+
+      /* Clear OTP cells */
       ['d0','d1','d2','d3'].forEach(id => { const c = el(id); if (c) c.value = ''; });
-      hide(el('otpAlert'));
-      show(el('otpModal'));
-      document.body.style.overflow = 'hidden';
-      el('d0')?.focus();
+
+      /* Hide any previous OTP alert */
+      const alertEl = el('otpAlert');
+      if (alertEl) alertEl.style.display = 'none';
+
+      /* ── OPEN MODAL ──────────────────────────────────────────────────────── */
+      /* Use display:flex explicitly — never '' which depends on CSS cascade    */
+      const modal = el('otpModal');
+      if (modal) {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        console.log('✔ Modal opened');
+      } else {
+        console.error('❌ otpModal element not found!');
+      }
+
+      /* Focus first OTP digit after modal renders */
+      setTimeout(() => el('d0')?.focus(), 150);
+
+      /* Start countdown */
       startTimer(600);
-      el('step1').classList.remove('active'); el('step1').classList.add('done');
-      el('step2').classList.add('active');
+
+      /* Advance stepper */
+      const s1 = el('step1'), s2 = el('step2');
+      if (s1) { s1.classList.remove('active'); s1.classList.add('done'); }
+      if (s2) s2.classList.add('active');
+
+      toast('OTP sent! Check your email.', 'ok');
+
     } else {
+      console.error('✖ Server rejected:', result);
       toast(result.message || 'Submission failed. Please try again.', 'bad');
+      /* Show field-level errors if any */
+      if (result.errors && typeof result.errors === 'object') {
+        Object.entries(result.errors).forEach(([field, msg]) => setErr(field, msg));
+      }
     }
-  } catch (err) {
-    console.error('Network error:', err);
+
+  } catch (networkErr) {
+    console.error('🔥 Network error:', networkErr);
     toast('Cannot reach server. Is the backend running on port 5000?', 'bad');
   } finally {
     setLoading(btn, false);
@@ -204,12 +264,25 @@ window.verifyOTP = async function () {
 
     if (data.success) {
       clearInterval(timerInterval);
-      hide(el('otpModal'));
+
+      /* Close OTP modal */
+      const modal = el('otpModal');
+      if (modal) modal.style.display = 'none';
       document.body.style.overflow = '';
-      el('successNomId').textContent = nominationId;
-      show(el('successOverlay'));
-      el('step2').classList.remove('active'); el('step2').classList.add('done');
-      el('step3').classList.add('active');
+
+      /* Show success overlay */
+      const sid = el('successNomId');
+      if (sid) sid.textContent = nominationId;
+      const overlay = el('successOverlay');
+      if (overlay) overlay.style.display = 'flex';
+
+      /* Update stepper */
+      const s2 = el('step2'), s3 = el('step3');
+      if (s2) { s2.classList.remove('active'); s2.classList.add('done'); }
+      if (s3) s3.classList.add('active');
+
+      console.log('✔ Nomination verified:', nominationId);
+
     } else {
       showOTPAlert(data.message || 'Incorrect OTP.');
     }
@@ -233,7 +306,8 @@ window.resendOTP = async function () {
     const data = await res.json();
     if (data.success) {
       ['d0','d1','d2','d3'].forEach(id => { const c = el(id); if (c) c.value = ''; });
-      hide(el('otpAlert'));
+      const alertEl = el('otpAlert');
+      if (alertEl) alertEl.style.display = 'none';
       el('d0')?.focus();
       startTimer(600);
       toast('New OTP sent! Check your email.', 'ok');
@@ -272,7 +346,7 @@ function startTimer(seconds) {
 /* ── DOM Ready ───────────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
 
-  /* Wire upload zones */
+  /* Upload zones — click to open file picker, show filename on select */
   document.querySelectorAll('.upload-zone').forEach(zone => {
     const input = zone.querySelector('.upload-input');
     if (!input) return;
@@ -290,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  /* OTP cell navigation */
+  /* OTP cell auto-advance, backspace, paste */
   const cells = ['d0','d1','d2','d3'].map(id => el(id));
   cells.forEach((cell, i) => {
     if (!cell) return;
@@ -310,12 +384,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  /* Wire verify and resend buttons */
+  const vBtn = el('verifyBtn');
+  if (vBtn) vBtn.addEventListener('click', window.verifyOTP);
+
+  const rBtn = el('resendBtn');
+  if (rBtn) rBtn.addEventListener('click', window.resendOTP);
+
   /* Close modal on backdrop click */
   const modal = el('otpModal');
   if (modal) {
     modal.addEventListener('click', e => {
       if (e.target === modal) {
-        hide(modal);
+        modal.style.display = 'none';
         document.body.style.overflow = '';
         clearInterval(timerInterval);
       }
