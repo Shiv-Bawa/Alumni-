@@ -7,10 +7,7 @@ let timerInterval = null;
 /* ── Helpers ─────────────────────────────────────────────────────────────────── */
 const el = id => document.getElementById(id);
 
-/* IMPORTANT: Use explicit display values — never rely on '' which depends on CSS */
-const show      = e => { if (e) e.style.display = 'flex';   }; // for modal-bg (flex layout)
-const showBlock = e => { if (e) e.style.display = 'block';  }; // for overlays, alerts
-const hide      = e => { if (e) e.style.display = 'none';   };
+const hide = e => { if (e) e.style.display = 'none'; };
 
 function toast(msg, type = '') {
   const t = el('toast');
@@ -41,11 +38,48 @@ const clearErr = id => setErr(id, '');
 function showOTPAlert(msg) {
   const a = el('otpAlert');
   if (!a) return;
-  a.textContent = msg;
-  a.style.display = 'block';
+  a.textContent    = msg;
+  a.style.display  = 'block';
 }
 
-/* ── Validation ──────────────────────────────────────────────────────────────── */
+/* ── Open OTP Modal ───────────────────────────────────────────────────────────── */
+function openModal() {
+  /* Clear digits */
+  ['d0','d1','d2','d3'].forEach(id => { const c = el(id); if (c) c.value = ''; });
+
+  /* Hide alert */
+  const alertEl = el('otpAlert');
+  if (alertEl) alertEl.style.display = 'none';
+
+  /* Set email display */
+  const emailDisp = el('otpEmailDisplay');
+  if (emailDisp) emailDisp.textContent = el('candidateEmail').value.trim();
+
+  /* Show modal — explicit flex, never rely on '' */
+  const modal = el('otpModal');
+  if (modal) {
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    console.log('✔ OTP modal is now visible');
+  } else {
+    console.error('❌ Could not find #otpModal in the DOM');
+    alert('OTP sent to your email! The modal failed to open — please refresh the page and try again.');
+    return;
+  }
+
+  /* Focus first digit box after a short delay */
+  setTimeout(() => el('d0')?.focus(), 200);
+
+  /* Start countdown */
+  startTimer(600);
+
+  /* Advance stepper */
+  const s1 = el('step1'), s2 = el('step2');
+  if (s1) { s1.classList.remove('active'); s1.classList.add('done'); }
+  if (s2) { s2.classList.remove('done');   s2.classList.add('active'); }
+}
+
+/* ── Validate ────────────────────────────────────────────────────────────────── */
 function validate() {
   let ok       = true;
   let firstErr = null;
@@ -56,19 +90,19 @@ function validate() {
     ok = false;
   }
 
-  /* 1. At least one position */
+  /* Positions */
   const positions = [...document.querySelectorAll('input[name="positions"]:checked')];
   if (!positions.length) {
-    const posErr = el('err-positions');
-    if (posErr) posErr.textContent = 'Select at least one position.';
+    const pe = el('err-positions');
+    if (pe) pe.textContent = 'Select at least one position.';
     if (!firstErr) firstErr = el('sec-positions');
     ok = false;
   } else {
-    const posErr = el('err-positions');
-    if (posErr) posErr.textContent = '';
+    const pe = el('err-positions');
+    if (pe) pe.textContent = '';
   }
 
-  /* 2. Candidate text / select fields */
+  /* Text / select fields */
   [
     ['candidateFullName',    'Full name is required'],
     ['candidateRollNumber',  'Roll number is required'],
@@ -85,19 +119,17 @@ function validate() {
     if (!v) fail(id, msg); else clearErr(id);
   });
 
-  /* 3. Email format */
+  /* Email format */
   const cEmail = (el('candidateEmail')?.value || '').trim();
-  if (cEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cEmail)) {
+  if (cEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cEmail))
     fail('candidateEmail', 'Enter a valid email address.');
-  }
 
-  /* 4. Mobile format */
+  /* Mobile format */
   const cMobile = (el('candidateMobile')?.value || '').trim();
-  if (cMobile && !/^[6-9]\d{9}$/.test(cMobile)) {
+  if (cMobile && !/^[6-9]\d{9}$/.test(cMobile))
     fail('candidateMobile', 'Enter a valid 10-digit Indian mobile number.');
-  }
 
-  /* 5. File uploads */
+  /* Files */
   [
     ['paymentScreenshot', 'Payment screenshot is required'],
     ['candidateProof',    'Proof of association is required'],
@@ -105,31 +137,22 @@ function validate() {
     if (!el(id)?.files?.[0]) fail(id, msg); else clearErr(id);
   });
 
-  /* 6. Declaration */
-  if (!el('declarationAccepted')?.checked) {
+  /* Declaration */
+  if (!el('declarationAccepted')?.checked)
     fail('declaration', 'You must accept the declaration.');
-  } else {
-    clearErr('declaration');
-  }
+  else clearErr('declaration');
 
   if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
   return ok;
 }
 
-/* ── Build FormData ───────────────────────────────────────────────────────────── */
-/*
-  multer parses multipart/form-data fields as FLAT literal strings.
-  Always use simple flat names here — never bracket notation.
-*/
+/* ── Build FormData ──────────────────────────────────────────────────────────── */
 function buildFormData() {
   const fd = new FormData();
 
-  /* Positions — append each checked position */
-  document.querySelectorAll('input[name="positions"]:checked').forEach(cb => {
-    fd.append('positions', cb.value);
-  });
+  document.querySelectorAll('input[name="positions"]:checked')
+    .forEach(cb => fd.append('positions', cb.value));
 
-  /* Candidate details — flat keys */
   fd.append('candidateFullName',    el('candidateFullName').value.trim());
   fd.append('candidateRollNumber',  el('candidateRollNumber').value.trim());
   fd.append('candidateYear',        el('candidateYear').value.trim());
@@ -139,14 +162,9 @@ function buildFormData() {
   fd.append('candidateCityCountry', el('candidateCityCountry').value.trim());
   fd.append('candidateCompany',     el('candidateCompany').value.trim());
   fd.append('candidateDesignation', el('candidateDesignation').value.trim());
+  fd.append('transactionNumber',    el('transactionNumber').value.trim());
+  fd.append('declarationAccepted',  el('declarationAccepted').checked ? 'true' : 'false');
 
-  /* Payment */
-  fd.append('transactionNumber', el('transactionNumber').value.trim());
-
-  /* Declaration */
-  fd.append('declarationAccepted', el('declarationAccepted').checked ? 'true' : 'false');
-
-  /* Files */
   const payFile   = el('paymentScreenshot')?.files[0];
   const proofFile = el('candidateProof')?.files[0];
   if (payFile)   fd.append('paymentScreenshot', payFile);
@@ -160,7 +178,7 @@ window.submitNomination = async function () {
   console.log('▶ submitNomination called');
 
   if (!validate()) {
-    console.log('✖ Validation failed — check red fields');
+    console.log('✖ Validation failed');
     return;
   }
 
@@ -173,7 +191,6 @@ window.submitNomination = async function () {
     const res = await fetch(`${API}/submit`, {
       method: 'POST',
       body:   buildFormData(),
-      /* Do NOT set Content-Type — browser sets multipart/form-data with boundary automatically */
     });
 
     console.log('📥 HTTP status:', res.status);
@@ -181,65 +198,27 @@ window.submitNomination = async function () {
     let result;
     try {
       result = await res.json();
-    } catch (parseErr) {
-      console.error('Could not parse server response:', parseErr);
-      toast('Server error. Please try again.', 'bad');
+    } catch {
+      toast('Server returned an unexpected response. Please try again.', 'bad');
       return;
     }
 
-    console.log('📥 Server response:', result);
+    console.log('📥 Server result:', result);
 
     if (result.success) {
+      /* ── Happy path: new nomination created ── */
       nominationId = result.nominationId;
-      console.log('✔ Nomination created:', nominationId);
-
-      /* Update email display in modal */
-      const emailDisp = el('otpEmailDisplay');
-      if (emailDisp) emailDisp.textContent = el('candidateEmail').value.trim();
-
-      /* Clear OTP cells */
-      ['d0','d1','d2','d3'].forEach(id => { const c = el(id); if (c) c.value = ''; });
-
-      /* Hide any previous OTP alert */
-      const alertEl = el('otpAlert');
-      if (alertEl) alertEl.style.display = 'none';
-
-      /* ── OPEN MODAL ──────────────────────────────────────────────────────── */
-      /* Use display:flex explicitly — never '' which depends on CSS cascade    */
-      const modal = el('otpModal');
-      if (modal) {
-        modal.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
-        console.log('✔ Modal opened');
-      } else {
-        console.error('❌ otpModal element not found!');
-      }
-
-      /* Focus first OTP digit after modal renders */
-      setTimeout(() => el('d0')?.focus(), 150);
-
-      /* Start countdown */
-      startTimer(600);
-
-      /* Advance stepper */
-      const s1 = el('step1'), s2 = el('step2');
-      if (s1) { s1.classList.remove('active'); s1.classList.add('done'); }
-      if (s2) s2.classList.add('active');
-
+      console.log('✔ nominationId:', nominationId);
+      openModal();
       toast('OTP sent! Check your email.', 'ok');
 
     } else {
-      console.error('✖ Server rejected:', result);
-      toast(result.message || 'Submission failed. Please try again.', 'bad');
-      /* Show field-level errors if any */
-      if (result.errors && typeof result.errors === 'object') {
-        Object.entries(result.errors).forEach(([field, msg]) => setErr(field, msg));
-      }
+      toast(result.message || 'Submission failed.', 'bad');
     }
 
   } catch (networkErr) {
     console.error('🔥 Network error:', networkErr);
-    toast('Cannot reach server. Is the backend running on port 5000?', 'bad');
+    toast('Cannot reach the server. Make sure the backend is running on port 5000.', 'bad');
   } finally {
     setLoading(btn, false);
   }
@@ -252,7 +231,8 @@ window.verifyOTP = async function () {
 
   const btn = el('verifyBtn');
   setLoading(btn, true);
-  hide(el('otpAlert'));
+  const alertEl = el('otpAlert');
+  if (alertEl) alertEl.style.display = 'none';
 
   try {
     const res  = await fetch(`${API}/verify-otp`, {
@@ -265,7 +245,7 @@ window.verifyOTP = async function () {
     if (data.success) {
       clearInterval(timerInterval);
 
-      /* Close OTP modal */
+      /* Close modal */
       const modal = el('otpModal');
       if (modal) modal.style.display = 'none';
       document.body.style.overflow = '';
@@ -276,12 +256,12 @@ window.verifyOTP = async function () {
       const overlay = el('successOverlay');
       if (overlay) overlay.style.display = 'flex';
 
-      /* Update stepper */
+      /* Stepper */
       const s2 = el('step2'), s3 = el('step3');
       if (s2) { s2.classList.remove('active'); s2.classList.add('done'); }
       if (s3) s3.classList.add('active');
 
-      console.log('✔ Nomination verified:', nominationId);
+      console.log('✔ Nomination verified!');
 
     } else {
       showOTPAlert(data.message || 'Incorrect OTP.');
@@ -346,7 +326,7 @@ function startTimer(seconds) {
 /* ── DOM Ready ───────────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
 
-  /* Upload zones — click to open file picker, show filename on select */
+  /* Upload zones */
   document.querySelectorAll('.upload-zone').forEach(zone => {
     const input = zone.querySelector('.upload-input');
     if (!input) return;
@@ -364,7 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  /* OTP cell auto-advance, backspace, paste */
+  /* OTP cells */
   const cells = ['d0','d1','d2','d3'].map(id => el(id));
   cells.forEach((cell, i) => {
     if (!cell) return;
@@ -384,14 +364,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  /* Wire verify and resend buttons */
-  const vBtn = el('verifyBtn');
-  if (vBtn) vBtn.addEventListener('click', window.verifyOTP);
+  /* Verify / Resend buttons */
+  el('verifyBtn')?.addEventListener('click', window.verifyOTP);
+  el('resendBtn')?.addEventListener('click', window.resendOTP);
 
-  const rBtn = el('resendBtn');
-  if (rBtn) rBtn.addEventListener('click', window.resendOTP);
-
-  /* Close modal on backdrop click */
+  /* Backdrop click closes modal */
   const modal = el('otpModal');
   if (modal) {
     modal.addEventListener('click', e => {
@@ -403,5 +380,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  console.log('✔ nomination.js loaded');
+  console.log('✔ nomination.js loaded — ready');
 });
