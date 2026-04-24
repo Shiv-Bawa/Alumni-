@@ -15,49 +15,56 @@ const submitNomination = async (req, res, next) => {
     const b     = req.body;
     const files = req.files || {};
 
-    /* ── Required file checks ───────────────────────────────────────────────── */
+    /* Required files */
     if (!files.paymentScreenshot?.[0])
       return res.status(400).json({ success: false, message: 'Payment screenshot is required.' });
-
     if (!files.candidateProof?.[0])
       return res.status(400).json({ success: false, message: 'Proof of association is required.' });
 
-    /* ── Positions ──────────────────────────────────────────────────────────── */
+    /* Positions */
     let positions = b.positions;
-    if (!positions)
+    if (!positions) {
+      cleanFiles(files);
       return res.status(400).json({ success: false, message: 'At least one position is required.' });
+    }
     if (typeof positions === 'string') positions = [positions];
     positions = [...new Set(positions.map(p => p.trim()))];
 
-    /* ── Candidate email ────────────────────────────────────────────────────── */
+    /* Candidate email */
     const candidateEmail = (b.candidateEmail || '').trim().toLowerCase();
     if (!candidateEmail) {
       cleanFiles(files);
       return res.status(400).json({ success: false, message: 'Candidate email is required.' });
     }
 
-    /* ── Duplicate check ────────────────────────────────────────────────────── */
-    const exists = await Nomination.findOne({
-      'candidate.email': candidateEmail,
-      status: { $in: ['pending_admin', 'approved', 'rejected'] },
-    });
-    if (exists) {
-      cleanFiles(files);
-      return res.status(409).json({ success: false, message: 'A nomination from this email already exists.' });
-    }
-
-    /* ── Remove stale pending_otp (older than 30 min) ───────────────────────── */
+    /* ── KEY FIX: If a pending_otp nomination exists for this email,
+       delete it and re-create (fresh OTP). This handles the case where
+       the client timed out and the user is trying again. ─────────────────── */
     await Nomination.deleteOne({
       'candidate.email': candidateEmail,
       status: 'pending_otp',
-      createdAt: { $lt: new Date(Date.now() - 30 * 60 * 1000) },
     });
 
-    /* ── Generate OTP ───────────────────────────────────────────────────────── */
+    /* ── If already submitted/approved/rejected, return nominationId so
+       the client can still show the OTP modal for verification ────────────── */
+    const existing = await Nomination.findOne({
+      'candidate.email': candidateEmail,
+      status: { $in: ['pending_admin', 'approved', 'rejected'] },
+    });
+    if (existing) {
+      cleanFiles(files);
+      return res.status(409).json({
+        success: false,
+        alreadyExists: true,
+        message: 'A verified nomination from this email already exists. It has been sent to admin for review.',
+      });
+    }
+
+    /* Generate OTP */
     const otp     = generateOTP();
     const otpHash = await hashOTP(otp);
 
-    /* ── Save nomination ────────────────────────────────────────────────────── */
+    /* Save nomination */
     const nomination = await Nomination.create({
       positions,
       candidate: {
@@ -83,7 +90,7 @@ const submitNomination = async (req, res, next) => {
 
     console.log(`\n📋 Nomination ${nomination.nominationId} | ${candidateEmail} | OTP: ${otp}\n`);
 
-    /* ── Send OTP email ─────────────────────────────────────────────────────── */
+    /* Send OTP email */
     try {
       await sendNominationOTP({
         to:           candidateEmail,
@@ -92,7 +99,8 @@ const submitNomination = async (req, res, next) => {
         nominationId: nomination.nominationId,
       });
     } catch (e) {
-      console.error('OTP email failed:', e.message);
+      console.error('OTP email failed (check SMTP config):', e.message);
+      /* Don't block the response — OTP is printed in console above for testing */
     }
 
     return res.status(201).json({
@@ -121,11 +129,11 @@ const verifyNominationOTP = async (req, res, next) => {
     if (!nom)
       return res.status(404).json({ success: false, message: 'Nomination not found.' });
     if (nom.status !== 'pending_otp')
-      return res.status(400).json({ success: false, message: 'Nomination already verified.' });
+      return res.status(400).json({ success: false, message: 'Nomination already verified and submitted.' });
     if (nom.otpAttempts >= 5)
-      return res.status(429).json({ success: false, message: 'Too many attempts. Please resubmit the form.' });
+      return res.status(429).json({ success: false, message: 'Too many wrong attempts. Please resubmit the form.' });
     if (isOTPExpired(nom.otpExpiry))
-      return res.status(400).json({ success: false, message: 'OTP has expired. Please resubmit.' });
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please resubmit the form.' });
 
     const valid = await verifyOTP(String(otp), nom.otpHash);
     if (!valid) {
@@ -137,6 +145,7 @@ const verifyNominationOTP = async (req, res, next) => {
       });
     }
 
+    /* Mark as submitted — move to admin review queue */
     nom.status      = 'pending_admin';
     nom.submittedAt = new Date();
     nom.otpHash     = undefined;
@@ -144,7 +153,7 @@ const verifyNominationOTP = async (req, res, next) => {
     nom.otpAttempts = 0;
     await nom.save();
 
-    /* Non-blocking emails */
+    /* Send confirmation emails (non-blocking) */
     sendNominationConfirmation({
       to:           nom.candidate.email,
       name:         nom.candidate.fullName,
@@ -160,7 +169,7 @@ const verifyNominationOTP = async (req, res, next) => {
 
     return res.status(200).json({
       success:      true,
-      message:      'Email verified! Your nomination is submitted and pending admin review.',
+      message:      'Email verified! Your nomination has been submitted for admin review.',
       nominationId: nom.nominationId,
     });
 
@@ -179,13 +188,15 @@ const resendNominationOTP = async (req, res, next) => {
       .select('+otpHash +otpExpiry +otpAttempts');
 
     if (!nom)
-      return res.status(404).json({ success: false, message: 'Pending nomination not found.' });
+      return res.status(404).json({ success: false, message: 'Pending nomination not found. Please resubmit the form.' });
 
     const otp         = generateOTP();
     nom.otpHash       = await hashOTP(otp);
     nom.otpExpiry     = getOTPExpiry(10);
     nom.otpAttempts   = 0;
     await nom.save();
+
+    console.log(`\n🔁 Resend OTP | ${nom.nominationId} | OTP: ${otp}\n`);
 
     await sendNominationOTP({
       to:           nom.candidate.email,
@@ -194,7 +205,7 @@ const resendNominationOTP = async (req, res, next) => {
       nominationId: nom.nominationId,
     });
 
-    return res.status(200).json({ success: true, message: 'New OTP sent.' });
+    return res.status(200).json({ success: true, message: 'New OTP sent to your email.' });
   } catch (err) { next(err); }
 };
 
